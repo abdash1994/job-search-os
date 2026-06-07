@@ -3,7 +3,9 @@
   "version": "1.0.0",
   "description": "Self-sustaining remote job aggregator — scrapes 10 boards, scores against your resume, tracks applications",
   "private": true,
-  "workspaces": ["apps/web"],
+  "workspaces": [
+    "apps/web"
+  ],
   "scripts": {
     "dev": "npm run dev --workspace=apps/web",
     "build": "npm run build --workspace=apps/web",
