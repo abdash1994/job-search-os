@@ -1,0 +1,31 @@
+scoring:
+  weights:
+    title_match: 0.25
+    skills_match: 0.40
+    experience_level: 0.15
+    location_match: 0.10
+    salary_match: 0.10
+
+  experience_levels:
+    junior: ["junior", "entry", "entry-level", "0-2", "1 year", "new grad", "graduate"]
+    mid: ["mid", "intermediate", "2-5", "3+ years", "mid-level"]
+    senior: ["senior", "sr.", "lead", "principal", "staff", "5+", "7+", "10+"]
+    manager: ["manager", "director", "vp ", "head of", "chief", "cto", "cpo"]
+
+  tfidf:
+    max_features: 5000
+    ngram_range: [1, 2]
+    min_df: 1
+
+providers:
+  tfidf:
+    class: "scoring.tfidf.TFIDFScorer"
+  huggingface:
+    class: "scoring.providers.huggingface.HuggingFaceScorer"
+    model: "sentence-transformers/all-MiniLM-L6-v2"
+  claude:
+    class: "scoring.providers.claude.ClaudeScorer"
+    model: "claude-3-haiku-20240307"
+  gemini:
+    class: "scoring.providers.gemini.GeminiScorer"
+    model: "gemini-1.5-flash"

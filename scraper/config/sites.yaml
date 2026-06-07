@@ -1,0 +1,115 @@
+sites:
+  weworkremotely:
+    name: "We Work Remotely"
+    url: "https://weworkremotely.com"
+    rss_feeds:
+      - "https://weworkremotely.com/categories/remote-full-stack-programming-jobs.rss"
+      - "https://weworkremotely.com/categories/remote-back-end-programming-jobs.rss"
+      - "https://weworkremotely.com/categories/remote-front-end-programming-jobs.rss"
+      - "https://weworkremotely.com/categories/remote-devops-sysadmin-jobs.rss"
+      - "https://weworkremotely.com/categories/remote-design-jobs.rss"
+      - "https://weworkremotely.com/categories/remote-product-jobs.rss"
+      - "https://weworkremotely.com/categories/remote-sales-and-marketing-jobs.rss"
+      - "https://weworkremotely.com/categories/remote-customer-support-jobs.rss"
+      - "https://weworkremotely.com/categories/remote-management-finance-jobs.rss"
+    method: rss
+    rate_limit_seconds: 2
+
+  workingnomads:
+    name: "Working Nomads"
+    url: "https://www.workingnomads.com"
+    api_url: "https://www.workingnomads.com/api/exposed_jobs/"
+    method: api
+    rate_limit_seconds: 2
+
+  remote_co:
+    name: "Remote.co"
+    url: "https://remote.co"
+    rss_feeds:
+      - "https://remote.co/feed/"
+    method: rss
+    rate_limit_seconds: 3
+
+  nodesk:
+    name: "NoDesk"
+    url: "https://nodesk.co"
+    jobs_url: "https://nodesk.co/remote-jobs/"
+    method: html
+    selectors:
+      job_list: "article.job"
+      title: "h2 a"
+      company: ".company"
+      location: ".location"
+      url: "h2 a"
+      posted: "time"
+    rate_limit_seconds: 3
+
+  remote100k:
+    name: "Remote100K"
+    url: "https://remote100k.com"
+    jobs_url: "https://remote100k.com/"
+    method: html
+    selectors:
+      job_list: "div.job-card, article"
+      title: "h2, h3"
+      company: ".company-name, .company"
+      location: ".location, .remote-location"
+      salary: ".salary"
+      url: "a"
+    rate_limit_seconds: 3
+
+  skipthedrive:
+    name: "SkipTheDrive"
+    url: "https://www.skipthedrive.com"
+    jobs_url: "https://www.skipthedrive.com/"
+    method: html
+    selectors:
+      job_list: ".job-listing, .listing-item"
+      title: "h2 a, h3 a"
+      company: ".company"
+      location: ".location"
+      url: "h2 a, h3 a"
+    rate_limit_seconds: 4
+
+  justremote:
+    name: "JustRemote"
+    url: "https://justremote.co"
+    jobs_url: "https://justremote.co/remote-jobs"
+    method: html
+    selectors:
+      job_list: ".job, .listing"
+      title: "h2 a, h3 a, .title a"
+      company: ".company, .employer"
+      location: ".location, .country"
+      url: "h2 a, h3 a, .title a"
+    rate_limit_seconds: 3
+
+  topstartups:
+    name: "Top Startups"
+    url: "https://topstartups.io"
+    jobs_url: "https://topstartups.io/?industry=&hq=&size=&stage=&investor=&founded="
+    method: html
+    selectors:
+      job_list: ".startup-card, .company-card"
+      title: "h3 a, .startup-name a"
+      company: ".startup-name, h3"
+      location: ".location, .hq"
+      url: "a.view-jobs"
+    rate_limit_seconds: 4
+
+  wellfound:
+    name: "Wellfound"
+    url: "https://wellfound.com"
+    jobs_url: "https://wellfound.com/jobs"
+    method: playwright
+    rate_limit_seconds: 5
+    use_proxy: true
+
+  crunchbase:
+    name: "Crunchbase"
+    url: "https://www.crunchbase.com"
+    jobs_url: "https://www.crunchbase.com/discover/jobs"
+    method: playwright
+    rate_limit_seconds: 8
+    use_proxy: true
+    requires_tor_fallback: true

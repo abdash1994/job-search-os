@@ -1,0 +1,38 @@
+name: Refresh Proxy Pool
+
+on:
+  schedule:
+    # Run daily at 03:00 UTC (off-peak, before morning scrape)
+    - cron: "0 3 * * *"
+  workflow_dispatch:
+
+jobs:
+  refresh-proxies:
+    name: Fetch and validate free proxy list
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+          cache-dependency-path: scraper/requirements.txt
+
+      - name: Install dependencies
+        working-directory: scraper
+        run: pip install -r requirements.txt
+
+      - name: Refresh proxy pool
+        working-directory: scraper
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          PROXYSCRAPE_URL: ${{ vars.PROXYSCRAPE_URL || 'https://api.proxyscrape.com/v2/?request=displayproxies&protocol=http&timeout=5000&country=all&ssl=all&anonymity=elite' }}
+          GEONODE_URL: ${{ vars.GEONODE_URL || 'https://proxylist.geonode.com/api/proxy-list?limit=200&page=1&sort_by=lastChecked&sort_type=desc&protocols=http,https' }}
+          LOG_LEVEL: INFO
+        run: python -m proxy.fetcher

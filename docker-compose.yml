@@ -1,0 +1,41 @@
+version: "3.9"
+
+services:
+  # ─── Web dashboard (Next.js) ─────────────────────────────────────────────────
+  web:
+    build:
+      context: ./apps/web
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - NEXT_PUBLIC_SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL}
+      - NEXT_PUBLIC_SUPABASE_ANON_KEY=${NEXT_PUBLIC_SUPABASE_ANON_KEY}
+    env_file:
+      - .env
+    depends_on:
+      - scraper
+    restart: unless-stopped
+
+  # ─── Python scraper engine ───────────────────────────────────────────────────
+  scraper:
+    build:
+      context: ./scraper
+      dockerfile: Dockerfile
+    environment:
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
+      - SCORING_PROVIDER=${SCORING_PROVIDER:-tfidf}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+    env_file:
+      - .env
+    restart: unless-stopped
+    # Chromium needs these for running inside Docker
+    security_opt:
+      - seccomp:unconfined
+    shm_size: "2gb"
+
+networks:
+  default:
+    name: job-search-os-network

@@ -1,0 +1,20 @@
+{
+  "name": "job-search-os",
+  "version": "1.0.0",
+  "description": "Self-sustaining remote job aggregator — scrapes 10 boards, scores against your resume, tracks applications",
+  "private": true,
+  "workspaces": ["apps/web"],
+  "scripts": {
+    "dev": "npm run dev --workspace=apps/web",
+    "build": "npm run build --workspace=apps/web",
+    "scrape": "cd scraper && python main.py",
+    "scrape:once": "cd scraper && python main.py --once",
+    "proxy:refresh": "cd scraper && python -m proxy.fetcher",
+    "setup": "node scripts/setup.js",
+    "db:migrate": "echo 'Run the SQL in supabase/migrations/ via the Supabase dashboard or CLI'"
+  },
+  "engines": {
+    "node": ">=20.0.0",
+    "npm": ">=10.0.0"
+  }
+}

@@ -1,0 +1,70 @@
+# ─── Environment files (NEVER commit these) ──────────────────────────────────
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# ─── Node / Next.js ──────────────────────────────────────────────────────────
+node_modules/
+.next/
+out/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnp
+.pnp.js
+
+# ─── Python ──────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+env/
+ENV/
+.pytest_cache/
+*.egg-info/
+dist/
+build/
+*.egg
+.mypy_cache/
+.ruff_cache/
+
+# ─── Playwright ───────────────────────────────────────────────────────────────
+/test-results/
+/playwright-report/
+/playwright/.cache/
+
+# ─── Logs ────────────────────────────────────────────────────────────────────
+*.log
+logs/
+scraper/logs/
+
+# ─── OS ──────────────────────────────────────────────────────────────────────
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# ─── IDE ─────────────────────────────────────────────────────────────────────
+.idea/
+*.swp
+*.swo
+.vscode/settings.json
+
+# ─── Docker ──────────────────────────────────────────────────────────────────
+.docker/
+
+# ─── Misc ────────────────────────────────────────────────────────────────────
+*.pem
+*.key
+*.cert
+coverage/
+.nyc_output/
