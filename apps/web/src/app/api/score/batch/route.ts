@@ -46,7 +46,7 @@ export async function POST() {
   const { data: jobs } = await supabase
     .from('jobs')
     .select('id, title, description')
-    .not('id', 'in', `(${[...alreadyScoredIds].join(',') || 'null'})`)
+    .not('id', 'in', `(${Array.from(alreadyScoredIds).join(',') || 'null'})`)
     .limit(500);
 
   if (!jobs || jobs.length === 0) {

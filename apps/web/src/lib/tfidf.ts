@@ -41,7 +41,7 @@ function buildTF(tokens: string[]): Map<string, number> {
   for (const t of tokens) freq.set(t, (freq.get(t) ?? 0) + 1);
   const total = tokens.length || 1;
   const tf = new Map<string, number>();
-  for (const [term, count] of freq) tf.set(term, count / total);
+  Array.from(freq.entries()).forEach(([term, count]) => tf.set(term, count / total));
   return tf;
 }
 
@@ -51,11 +51,11 @@ function cosineSimilarity(a: Map<string, number>, b: Map<string, number>): numbe
   let magA = 0;
   let magB = 0;
 
-  for (const [term, tfA] of a) {
+  Array.from(a.entries()).forEach(([term, tfA]) => {
     dot += tfA * (b.get(term) ?? 0);
     magA += tfA * tfA;
-  }
-  for (const [, tfB] of b) magB += tfB * tfB;
+  });
+  Array.from(b.values()).forEach((tfB) => { magB += tfB * tfB; });
 
   const denom = Math.sqrt(magA) * Math.sqrt(magB);
   return denom === 0 ? 0 : dot / denom;
@@ -168,7 +168,7 @@ function extractSkillsFromText(text: string): string[] {
     const matches = text.match(pattern) ?? [];
     matches.forEach((m) => skills.add(m.toLowerCase()));
   }
-  return [...skills];
+  return Array.from(skills);
 }
 
 /** Extract skills from resume text for storage in user_profiles */
