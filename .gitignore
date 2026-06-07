@@ -68,3 +68,5 @@ Desktop.ini
 *.cert
 coverage/
 .nyc_output/
+apps/web/.next/
+apps/web/node_modules/
