@@ -9,57 +9,55 @@ interface ResumeUploaderProps {
   currentResumeDate?: string | null;
 }
 
-type Mode = 'drop' | 'paste';
+type Mode = 'upload' | 'paste';
+
+const ACCEPTED = '.pdf,.doc,.docx,.txt,.md,.rtf';
+const ACCEPTED_LABEL = 'PDF, Word (.docx), TXT, MD, RTF';
 
 export function ResumeUploader({ onUpload, currentResumeDate }: ResumeUploaderProps) {
-  const [mode, setMode] = useState<Mode>('drop');
+  const [mode, setMode] = useState<Mode>('upload');
   const [dragging, setDragging] = useState(false);
-  const [uploading, setUploading] = useState(false);
-  const [success, setSuccess] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [status, setStatus] = useState<'idle' | 'parsing' | 'saving' | 'done' | 'error'>('idle');
   const [fileName, setFileName] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const [pasteText, setPasteText] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const submit = useCallback(async (text: string) => {
-    if (!text.trim()) {
-      setError('Resume text is empty. Please paste or upload your resume content.');
-      return;
-    }
-    setError(null);
-    setUploading(true);
-    setSuccess(false);
+  const saveText = useCallback(async (text: string) => {
+    setStatus('saving');
     try {
       await onUpload(text.trim());
-      setSuccess(true);
-      setTimeout(() => setSuccess(false), 3000);
+      setStatus('done');
+      setTimeout(() => setStatus('idle'), 3000);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Upload failed. Please try again.');
-    } finally {
-      setUploading(false);
+      setError(err instanceof Error ? err.message : 'Failed to save resume');
+      setStatus('error');
     }
   }, [onUpload]);
 
   const processFile = useCallback(async (file: File) => {
-    if (file.type === 'application/pdf' || file.name.endsWith('.pdf')) {
-      setError('PDF files cannot be read directly in the browser. Open your PDF, select all text (Ctrl+A / Cmd+A), copy it, then use the "Paste text" tab to paste it here.');
-      return;
-    }
-    if (!file.name.endsWith('.txt') && !file.type.includes('text')) {
-      setError('Only .txt files are supported for direct upload. For PDF, use the Paste text tab.');
-      return;
-    }
-    if (file.size > 5 * 1024 * 1024) {
-      setError('File must be smaller than 5 MB.');
-      return;
-    }
     setError(null);
     setFileName(file.name);
-    const reader = new FileReader();
-    reader.onload = (e) => submit((e.target?.result as string) ?? '');
-    reader.onerror = () => setError('Failed to read file.');
-    reader.readAsText(file, 'utf-8');
-  }, [submit]);
+    setStatus('parsing');
+
+    try {
+      const form = new FormData();
+      form.append('file', file);
+      const res = await fetch('/api/resume/parse', { method: 'POST', body: form });
+      const data = await res.json();
+
+      if (!res.ok) {
+        setError(data.error ?? 'Failed to parse file');
+        setStatus('error');
+        return;
+      }
+
+      await saveText(data.text);
+    } catch {
+      setError('Could not read the file. Try copy-pasting your resume instead.');
+      setStatus('error');
+    }
+  }, [saveText]);
 
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -68,29 +66,27 @@ export function ResumeUploader({ onUpload, currentResumeDate }: ResumeUploaderPr
     if (file) processFile(file);
   }, [processFile]);
 
+  const isLoading = status === 'parsing' || status === 'saving';
+
   return (
     <div className="space-y-3">
       {/* Mode tabs */}
       <div className="flex gap-1 p-1 bg-slate-900 border border-slate-800 rounded-xl w-fit">
         <button
-          onClick={() => setMode('drop')}
+          onClick={() => { setMode('upload'); setError(null); }}
           className={cn(
             'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition',
-            mode === 'drop'
-              ? 'bg-slate-700 text-white'
-              : 'text-slate-400 hover:text-white'
+            mode === 'upload' ? 'bg-slate-700 text-white' : 'text-slate-400 hover:text-white'
           )}
         >
           <Upload className="w-3.5 h-3.5" />
-          Upload .txt
+          Upload file
         </button>
         <button
-          onClick={() => setMode('paste')}
+          onClick={() => { setMode('paste'); setError(null); }}
           className={cn(
             'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition',
-            mode === 'paste'
-              ? 'bg-slate-700 text-white'
-              : 'text-slate-400 hover:text-white'
+            mode === 'paste' ? 'bg-slate-700 text-white' : 'text-slate-400 hover:text-white'
           )}
         >
           <ClipboardPaste className="w-3.5 h-3.5" />
@@ -98,33 +94,36 @@ export function ResumeUploader({ onUpload, currentResumeDate }: ResumeUploaderPr
         </button>
       </div>
 
-      {mode === 'drop' ? (
+      {mode === 'upload' ? (
         <div
           onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
           onDragLeave={() => setDragging(false)}
           onDrop={handleDrop}
-          onClick={() => !uploading && inputRef.current?.click()}
+          onClick={() => !isLoading && inputRef.current?.click()}
           className={cn(
             'relative border-2 border-dashed rounded-xl p-8 flex flex-col items-center justify-center gap-3 cursor-pointer transition-colors',
-            dragging
-              ? 'border-primary-500 bg-primary-500/5'
-              : 'border-slate-700 hover:border-slate-600 hover:bg-slate-800/50'
+            dragging ? 'border-primary-500 bg-primary-500/5'
+                     : 'border-slate-700 hover:border-slate-600 hover:bg-slate-800/50',
+            isLoading && 'pointer-events-none opacity-70'
           )}
         >
           <input
             ref={inputRef}
             type="file"
-            accept=".txt,text/plain"
+            accept={ACCEPTED}
             className="sr-only"
             onChange={(e) => { const f = e.target.files?.[0]; if (f) processFile(f); }}
-            disabled={uploading}
+            disabled={isLoading}
           />
-          {uploading ? (
+
+          {isLoading ? (
             <>
               <Loader2 className="w-8 h-8 text-primary-400 animate-spin" />
-              <p className="text-sm text-slate-300">Uploading {fileName}…</p>
+              <p className="text-sm text-slate-300">
+                {status === 'parsing' ? `Extracting text from ${fileName}…` : 'Saving resume…'}
+              </p>
             </>
-          ) : success ? (
+          ) : status === 'done' ? (
             <>
               <CheckCircle className="w-8 h-8 text-success-400" />
               <p className="text-sm text-success-400 font-medium">Resume saved!</p>
@@ -136,12 +135,10 @@ export function ResumeUploader({ onUpload, currentResumeDate }: ResumeUploaderPr
               </div>
               <div className="text-center">
                 <p className="text-sm font-medium text-white">
-                  {dragging ? 'Drop your .txt file here' : 'Upload .txt file'}
+                  {dragging ? 'Drop your resume here' : 'Upload your resume'}
                 </p>
-                <p className="text-xs text-slate-400 mt-0.5">Plain text only · Max 5 MB</p>
-                <p className="text-xs text-slate-500 mt-2">
-                  For PDF: open it, Cmd/Ctrl+A, copy, then use <button onClick={(e) => { e.stopPropagation(); setMode('paste'); }} className="text-primary-400 underline">Paste text</button>
-                </p>
+                <p className="text-xs text-slate-400 mt-1">{ACCEPTED_LABEL}</p>
+                <p className="text-xs text-slate-500 mt-0.5">Max 10 MB · drag & drop or click</p>
               </div>
             </>
           )}
@@ -151,19 +148,19 @@ export function ResumeUploader({ onUpload, currentResumeDate }: ResumeUploaderPr
           <textarea
             value={pasteText}
             onChange={(e) => setPasteText(e.target.value)}
-            placeholder="Open your resume (PDF or Word), select all text (Ctrl+A / Cmd+A), copy it, then paste here…"
+            placeholder="Open your resume, select all (Ctrl+A / Cmd+A), copy, then paste here…"
             rows={10}
             className="w-full px-3 py-3 bg-slate-900 border border-slate-700 rounded-xl text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent resize-none"
           />
           <div className="flex items-center justify-between">
-            <span className="text-xs text-slate-500">{pasteText.length.toLocaleString()} characters</span>
+            <span className="text-xs text-slate-500">{pasteText.length.toLocaleString()} chars</span>
             <button
-              onClick={() => submit(pasteText)}
-              disabled={uploading || !pasteText.trim()}
+              onClick={() => saveText(pasteText)}
+              disabled={isLoading || !pasteText.trim()}
               className="flex items-center gap-2 px-4 py-2 bg-primary-600 hover:bg-primary-500 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium rounded-lg transition"
             >
-              {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : success ? <CheckCircle className="w-4 h-4" /> : <ClipboardPaste className="w-4 h-4" />}
-              {uploading ? 'Saving…' : success ? 'Saved!' : 'Save resume'}
+              {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : status === 'done' ? <CheckCircle className="w-4 h-4" /> : <ClipboardPaste className="w-4 h-4" />}
+              {isLoading ? 'Saving…' : status === 'done' ? 'Saved!' : 'Save resume'}
             </button>
           </div>
         </div>
@@ -176,7 +173,7 @@ export function ResumeUploader({ onUpload, currentResumeDate }: ResumeUploaderPr
         </div>
       )}
 
-      {currentResumeDate && !uploading && (
+      {currentResumeDate && !isLoading && (
         <div className="flex items-center gap-2 text-xs text-slate-400">
           <FileText className="w-3.5 h-3.5" />
           Last uploaded: {new Date(currentResumeDate).toLocaleDateString()}
