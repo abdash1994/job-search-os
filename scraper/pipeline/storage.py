@@ -103,14 +103,19 @@ class Storage:
             proxy_used: Proxy URL used for this run, if any.
             error: Error message if the run failed.
         """
+        now = datetime.now(timezone.utc).isoformat()
+        # Map legacy status values to DB enum: running|success|blocked|error
+        status_map = {"partial": "success", "failed": "error"}
+        db_status = status_map.get(status, status)
         row = {
             "source": source,
-            "status": status,
+            "status": db_status,
             "jobs_found": jobs_found,
             "jobs_new": jobs_new,
             "proxy_used": proxy_used,
-            "error": error[:2000] if error else None,  # Truncate long errors
-            "run_at": datetime.now(timezone.utc).isoformat(),
+            "error_message": error[:2000] if error else None,
+            "started_at": now,
+            "completed_at": now,
         }
         try:
             self._client.table(_SCRAPER_RUNS_TABLE).insert(row).execute()
