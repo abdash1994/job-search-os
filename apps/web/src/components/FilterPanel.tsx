@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { SlidersHorizontal, X, ChevronDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from './ui/Button';
@@ -20,7 +20,7 @@ const ALL_SOURCES = [
   'crunchbase',
 ];
 
-const SOURCE_LABELS: Record<string, string> = {
+export const SOURCE_LABELS: Record<string, string> = {
   weworkremotely: 'We Work Remotely',
   workingnomads: 'Working Nomads',
   remote_co: 'Remote.co',
@@ -54,6 +54,21 @@ const SORT_OPTIONS: { value: SortBy; label: string }[] = [
   { value: 'scraped_at', label: 'Date scraped' },
 ];
 
+/** Returns the number of filters that deviate from their default (inactive) state. */
+export function countActiveFilters(filters: JobFilters): number {
+  let count = 0;
+  if (filters.keyword) count++;
+  if (filters.sources.length) count++;
+  if (filters.jobTypes.length) count++;
+  if (filters.country) count++;
+  if (filters.salaryMin > 0) count++;
+  if (filters.salaryMax < 300000) count++;
+  if (filters.postedWithinDays !== null) count++;
+  if (filters.minScore > 0) count++;
+  if (filters.showApplied) count++;
+  return count;
+}
+
 interface FilterPanelProps {
   filters: JobFilters;
   onChange: (filters: JobFilters) => void;
@@ -65,6 +80,41 @@ interface FilterPanelProps {
 export function FilterPanel({ filters, onChange, hasResume, isMobileOpen, onMobileClose }: FilterPanelProps) {
   const update = <K extends keyof JobFilters>(key: K, value: JobFilters[K]) =>
     onChange({ ...filters, [key]: value, page: 0 });
+
+  // ── Local state for debounced / release-only inputs ──────────────────────
+
+  const [localKeyword, setLocalKeyword] = useState(filters.keyword ?? '');
+  const [localCountry, setLocalCountry] = useState(filters.country ?? '');
+  const [localSalaryMin, setLocalSalaryMin] = useState(filters.salaryMin);
+  const [localSalaryMax, setLocalSalaryMax] = useState(filters.salaryMax);
+
+  // Sync local state from parent when filters change externally (e.g. reset)
+  useEffect(() => { setLocalKeyword(filters.keyword ?? ''); }, [filters.keyword]);
+  useEffect(() => { setLocalCountry(filters.country ?? ''); }, [filters.country]);
+  useEffect(() => { setLocalSalaryMin(filters.salaryMin); }, [filters.salaryMin]);
+  useEffect(() => { setLocalSalaryMax(filters.salaryMax); }, [filters.salaryMax]);
+
+  // Debounce keyword → 400 ms
+  useEffect(() => {
+    if (localKeyword === (filters.keyword ?? '')) return;
+    const timer = setTimeout(() => {
+      onChange({ ...filters, keyword: localKeyword, page: 0 });
+    }, 400);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [localKeyword]);
+
+  // Debounce country → 400 ms
+  useEffect(() => {
+    if (localCountry === (filters.country ?? '')) return;
+    const timer = setTimeout(() => {
+      onChange({ ...filters, country: localCountry, page: 0 });
+    }, 400);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [localCountry]);
+
+  // ── Helpers ───────────────────────────────────────────────────────────────
 
   const toggleSource = (src: string) => {
     const next = filters.sources.includes(src)
@@ -80,17 +130,36 @@ export function FilterPanel({ filters, onChange, hasResume, isMobileOpen, onMobi
     update('jobTypes', next);
   };
 
+  const handleSalaryMouseUp = () => {
+    if (localSalaryMin !== filters.salaryMin || localSalaryMax !== filters.salaryMax) {
+      onChange({ ...filters, salaryMin: localSalaryMin, salaryMax: localSalaryMax, page: 0 });
+    }
+  };
+
   const resetFilters = () =>
     onChange({
+      keyword: '',
       sources: [], jobTypes: [], country: '', salaryMin: 0, salaryMax: 300000,
       postedWithinDays: null, minScore: 0, showApplied: false,
-      // Default sort: relevance if resume uploaded, otherwise scraped_at
       sortBy: hasResume ? 'relevance_score' : 'scraped_at',
       page: 0,
     });
 
+  // ── Panel content ─────────────────────────────────────────────────────────
+
   const content = (
     <div className="space-y-5">
+      {/* Keyword search */}
+      <FilterSection title="Search">
+        <input
+          type="search"
+          value={localKeyword}
+          onChange={(e) => setLocalKeyword(e.target.value)}
+          placeholder="Job title, company, skill…"
+          className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+        />
+      </FilterSection>
+
       {/* Sort */}
       <FilterSection title="Sort by">
         <div className="flex flex-col gap-1.5">
@@ -111,6 +180,29 @@ export function FilterPanel({ filters, onChange, hasResume, isMobileOpen, onMobi
             </label>
           ))}
         </div>
+      </FilterSection>
+
+      {/* Show applied — second section, right after Sort */}
+      <FilterSection title="Visibility">
+        <label className="flex items-center justify-between cursor-pointer">
+          <span className="text-sm text-slate-300">Show applied jobs</span>
+          <button
+            role="switch"
+            aria-checked={filters.showApplied}
+            onClick={() => update('showApplied', !filters.showApplied)}
+            className={cn(
+              'relative inline-flex w-10 h-5 rounded-full transition-colors focus:outline-none',
+              filters.showApplied ? 'bg-primary-600' : 'bg-slate-700'
+            )}
+          >
+            <span
+              className={cn(
+                'absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full transition-transform shadow',
+                filters.showApplied && 'translate-x-5'
+              )}
+            />
+          </button>
+        </label>
       </FilterSection>
 
       {/* Sources */}
@@ -147,12 +239,12 @@ export function FilterPanel({ filters, onChange, hasResume, isMobileOpen, onMobi
         </div>
       </FilterSection>
 
-      {/* Country */}
+      {/* Country — debounced */}
       <FilterSection title="Country">
         <input
           type="text"
-          value={filters.country}
-          onChange={(e) => update('country', e.target.value)}
+          value={localCountry}
+          onChange={(e) => setLocalCountry(e.target.value)}
           placeholder="e.g. US, Germany, UK"
           className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
         />
@@ -176,19 +268,21 @@ export function FilterPanel({ filters, onChange, hasResume, isMobileOpen, onMobi
         </div>
       </FilterSection>
 
-      {/* Salary range */}
-      <FilterSection title={`Salary: $${(filters.salaryMin / 1000).toFixed(0)}k – $${(filters.salaryMax / 1000).toFixed(0)}k`}>
+      {/* Salary range — fires only on mouse/touch release */}
+      <FilterSection title={`Salary: $${(localSalaryMin / 1000).toFixed(0)}k – $${(localSalaryMax / 1000).toFixed(0)}k`}>
         <div className="space-y-3 px-1">
           <div>
             <p className="text-xs text-slate-500 mb-1">Minimum</p>
             <input
               type="range"
               min={0} max={300000} step={5000}
-              value={filters.salaryMin}
+              value={localSalaryMin}
               onChange={(e) => {
                 const v = Number(e.target.value);
-                if (v <= filters.salaryMax) update('salaryMin', v);
+                if (v <= localSalaryMax) setLocalSalaryMin(v);
               }}
+              onMouseUp={handleSalaryMouseUp}
+              onTouchEnd={handleSalaryMouseUp}
               className="w-full accent-primary-500"
             />
           </div>
@@ -197,11 +291,13 @@ export function FilterPanel({ filters, onChange, hasResume, isMobileOpen, onMobi
             <input
               type="range"
               min={0} max={300000} step={5000}
-              value={filters.salaryMax}
+              value={localSalaryMax}
               onChange={(e) => {
                 const v = Number(e.target.value);
-                if (v >= filters.salaryMin) update('salaryMax', v);
+                if (v >= localSalaryMin) setLocalSalaryMax(v);
               }}
+              onMouseUp={handleSalaryMouseUp}
+              onTouchEnd={handleSalaryMouseUp}
               className="w-full accent-primary-500"
             />
           </div>
@@ -225,29 +321,6 @@ export function FilterPanel({ filters, onChange, hasResume, isMobileOpen, onMobi
           </div>
         </FilterSection>
       )}
-
-      {/* Show applied toggle */}
-      <FilterSection title="Visibility">
-        <label className="flex items-center justify-between cursor-pointer">
-          <span className="text-sm text-slate-300">Show applied jobs</span>
-          <button
-            role="switch"
-            aria-checked={filters.showApplied}
-            onClick={() => update('showApplied', !filters.showApplied)}
-            className={cn(
-              'relative inline-flex w-10 h-5 rounded-full transition-colors focus:outline-none',
-              filters.showApplied ? 'bg-primary-600' : 'bg-slate-700'
-            )}
-          >
-            <span
-              className={cn(
-                'absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full transition-transform shadow',
-                filters.showApplied && 'translate-x-5'
-              )}
-            />
-          </button>
-        </label>
-      </FilterSection>
 
       {/* Reset */}
       <Button variant="ghost" size="sm" onClick={resetFilters} className="w-full text-slate-400">

@@ -44,7 +44,7 @@ export default function StatusPage() {
       const res = await fetch('/api/scrape/trigger', { method: 'POST' });
       if (!res.ok) throw new Error('Trigger failed');
       const d = await res.json();
-      setTriggerResult(d.message ?? 'Scrape job triggered successfully.');
+      setTriggerResult(`${d.message ?? 'Scrape request recorded.'} GitHub Actions will pick this up at the next scheduled run (every 6h).`);
       setTimeout(fetchStatus, 3000);
     } catch (err) {
       setTriggerResult(err instanceof Error ? err.message : 'Trigger failed');
@@ -82,15 +82,18 @@ export default function StatusPage() {
           >
             <RefreshCw className="w-4 h-4" />
           </button>
-          <Button
-            variant="primary"
-            size="sm"
-            loading={triggering}
-            leftIcon={<Play className="w-3.5 h-3.5" />}
-            onClick={() => setShowConfirm(true)}
-          >
-            Trigger scrape
-          </Button>
+          <div className="flex flex-col items-end gap-0.5">
+            <Button
+              variant="primary"
+              size="sm"
+              loading={triggering}
+              leftIcon={<Play className="w-3.5 h-3.5" />}
+              onClick={() => setShowConfirm(true)}
+            >
+              Request scrape
+            </Button>
+            <span className="text-[10px] text-slate-500">(Runs via GitHub Actions, starts within 6h)</span>
+          </div>
         </div>
       </div>
 
@@ -166,12 +169,12 @@ export default function StatusPage() {
       </section>
 
       {/* Confirm trigger modal */}
-      <Modal open={showConfirm} onClose={() => setShowConfirm(false)} title="Trigger scraper?">
+      <Modal open={showConfirm} onClose={() => setShowConfirm(false)} title="Request a scrape?">
         <div className="space-y-4">
           <div className="flex items-start gap-3 p-3 bg-warning-500/10 border border-warning-500/20 rounded-xl">
             <AlertTriangle className="w-5 h-5 text-warning-400 shrink-0 mt-0.5" />
             <p className="text-sm text-slate-300">
-              This will start scraping all configured job boards immediately. Use sparingly to avoid rate limits.
+              This creates a trigger record. The scraper will run at the next GitHub Actions schedule (within 6 hours). You cannot force an immediate run from here.
             </p>
           </div>
           <div className="flex gap-2 justify-end">
@@ -179,7 +182,7 @@ export default function StatusPage() {
               Cancel
             </Button>
             <Button variant="primary" size="sm" leftIcon={<Play className="w-3.5 h-3.5" />} onClick={handleTrigger}>
-              Yes, trigger now
+              Yes, request scrape
             </Button>
           </div>
         </div>

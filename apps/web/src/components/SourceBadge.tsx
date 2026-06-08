@@ -1,4 +1,5 @@
 import { cn } from '@/lib/utils';
+import { getSourceLabel } from '@/lib/sources';
 
 /** Deterministic color mapping for each job board */
 const SOURCE_COLORS: Record<string, string> = {
@@ -18,22 +19,6 @@ const SOURCE_COLORS: Record<string, string> = {
 
 const DEFAULT_COLOR = 'bg-slate-700/60 text-slate-300 ring-1 ring-slate-600/50';
 
-/** Friendly display names for sources */
-const SOURCE_LABELS: Record<string, string> = {
-  linkedin: 'LinkedIn',
-  indeed: 'Indeed',
-  remoteok: 'Remote OK',
-  weworkremotely: 'WWR',
-  remotive: 'Remotive',
-  jobspresso: 'Jobspresso',
-  ycombinator: 'YC',
-  glassdoor: 'Glassdoor',
-  angel: 'AngelList',
-  greenhouse: 'Greenhouse',
-  lever: 'Lever',
-  workable: 'Workable',
-};
-
 interface SourceBadgeProps {
   source: string;
   className?: string;
@@ -42,7 +27,7 @@ interface SourceBadgeProps {
 export function SourceBadge({ source, className }: SourceBadgeProps) {
   const key = source.toLowerCase().replace(/[^a-z]/g, '');
   const colorClass = SOURCE_COLORS[key] ?? DEFAULT_COLOR;
-  const label = SOURCE_LABELS[key] ?? source;
+  const label = getSourceLabel(key);
 
   return (
     <span

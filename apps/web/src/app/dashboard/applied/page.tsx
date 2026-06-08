@@ -6,9 +6,16 @@ import { StatusKanban } from '@/components/StatusKanban';
 import { SkeletonCardList } from '@/components/SkeletonCard';
 import { EmptyState } from '@/components/EmptyState';
 import { createClient } from '@/lib/supabase/client';
+import { useToast } from '@/hooks/useToast';
 import type { UserJob, JobStatus } from '@/types';
 
+const STATUS_LABELS: Record<string, string> = {
+  saved: 'Saved', applied: 'Applied', interviewing: 'Interviewing',
+  offer: 'Offer received!', rejected: 'Marked as rejected', new: 'Removed from tracker',
+};
+
 export default function AppliedPage() {
+  const toast = useToast();
   const [jobs, setJobs] = useState<UserJob[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -66,7 +73,8 @@ export default function AppliedPage() {
         { onConflict: 'user_id,job_id' }
       );
 
-    if (error) return;
+    if (error) { toast('Failed to update status', 'error'); return; }
+    toast(STATUS_LABELS[status] ?? `Moved to ${status}`, status === 'offer' ? 'success' : 'info');
     setJobs((prev) => prev.map((j) => (j.job_id === jobId ? { ...j, status } : j)));
   };
 

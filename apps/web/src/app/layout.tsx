@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next';
 import { Inter } from 'next/font/google';
 import './globals.css';
+import { ToastProvider } from '@/hooks/useToast';
 
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter' });
 
@@ -45,7 +46,9 @@ export default function RootLayout({
         <meta name="apple-mobile-web-app-title" content="JobOS" />
       </head>
       <body className={`${inter.variable} font-sans`}>
-        {children}
+        <ToastProvider>
+          {children}
+        </ToastProvider>
         <script
           dangerouslySetInnerHTML={{
             __html: `

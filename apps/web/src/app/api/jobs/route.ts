@@ -16,6 +16,7 @@ export async function GET(request: NextRequest) {
 
   const { searchParams } = new URL(request.url);
 
+  const keyword = searchParams.get('keyword') ?? '';
   const sources = searchParams.getAll('source[]');
   const jobTypes = searchParams.getAll('job_type[]');
   const country = searchParams.get('country') ?? '';
@@ -59,6 +60,11 @@ export async function GET(request: NextRequest) {
       since.setDate(since.getDate() - postedWithinDays);
       ujQuery = ujQuery.gte('jobs.posted_at', since.toISOString());
     }
+    if (keyword) {
+      ujQuery = ujQuery.or(
+        `jobs.title.ilike.%${keyword}%,jobs.company.ilike.%${keyword}%,jobs.description.ilike.%${keyword}%`
+      );
+    }
 
     ujQuery = ujQuery.range(offset, offset + limit - 1);
 
@@ -99,6 +105,10 @@ export async function GET(request: NextRequest) {
     const since = new Date();
     since.setDate(since.getDate() - postedWithinDays);
     query = query.gte('posted_at', since.toISOString());
+  }
+
+  if (keyword) {
+    query = query.or(`title.ilike.%${keyword}%,company.ilike.%${keyword}%,description.ilike.%${keyword}%`);
   }
 
   if (sortBy === 'date_posted') {

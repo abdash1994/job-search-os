@@ -8,11 +8,13 @@ import { cn, formatDate, formatSalary } from '@/lib/utils';
 import { SourceBadge } from './SourceBadge';
 import { ScoreBadge } from './ScoreBadge';
 import { Badge } from './ui/Badge';
+import { useToast } from '@/hooks/useToast';
 import type { UserJob, JobStatus } from '@/types';
 
 interface JobCardProps {
   job: UserJob;
   onStatusChange: (jobId: string, status: JobStatus) => Promise<void>;
+  hasResume?: boolean;
 }
 
 const JOB_TYPE_LABELS: Record<string, string> = {
@@ -34,7 +36,8 @@ function isViewed(viewedAt: string | null | undefined): boolean {
   return !!viewedAt;
 }
 
-export function JobCard({ job, onStatusChange }: JobCardProps) {
+export function JobCard({ job, onStatusChange, hasResume = false }: JobCardProps) {
+  const toast = useToast();
   const [isChangingStatus, setIsChangingStatus] = useState(false);
   const [viewed, setViewed] = useState(isViewed(job.viewed_at));
   const isSaved = job.status === 'saved';
@@ -48,14 +51,22 @@ export function JobCard({ job, onStatusChange }: JobCardProps) {
 
   const handleSave = async () => {
     setIsChangingStatus(true);
-    try { await onStatusChange(job.job_id, isSaved ? 'new' : 'saved'); }
-    finally { setIsChangingStatus(false); }
+    try {
+      await onStatusChange(job.job_id, isSaved ? 'new' : 'saved');
+      toast(isSaved ? 'Removed from saved' : 'Job saved!', 'success');
+    } catch {
+      toast('Failed to save job', 'error');
+    } finally { setIsChangingStatus(false); }
   };
 
   const handleApply = async () => {
     setIsChangingStatus(true);
-    try { await onStatusChange(job.job_id, isApplied ? 'saved' : 'applied'); }
-    finally { setIsChangingStatus(false); }
+    try {
+      await onStatusChange(job.job_id, isApplied ? 'saved' : 'applied');
+      toast(isApplied ? 'Moved back to saved' : 'Marked as applied!', 'success');
+    } catch {
+      toast('Failed to update status', 'error');
+    } finally { setIsChangingStatus(false); }
   };
 
   const handleView = () => {
@@ -97,12 +108,21 @@ export function JobCard({ job, onStatusChange }: JobCardProps) {
               </p>
             </div>
 
-            {/* Score badge */}
-            {job.relevance_score !== null && job.relevance_score !== undefined && (
-              <div className="shrink-0">
+            {/* Score badge / CTA */}
+            <div className="shrink-0">
+              {job.relevance_score !== null && job.relevance_score !== undefined ? (
                 <ScoreBadge score={job.relevance_score} breakdown={job.relevance_breakdown} />
-              </div>
-            )}
+              ) : hasResume ? (
+                <span className="text-xs text-slate-500 px-1.5 py-0.5 bg-slate-800 rounded-md">—</span>
+              ) : (
+                <a
+                  href="/dashboard/resume"
+                  className="text-xs text-slate-500 hover:text-primary-400 underline"
+                >
+                  Add resume
+                </a>
+              )}
+            </div>
           </div>
 
           {/* Tags row */}
@@ -153,16 +173,17 @@ export function JobCard({ job, onStatusChange }: JobCardProps) {
           {/* Dates + actions */}
           <div className="flex items-center justify-between mt-3 pt-2 border-t border-slate-800">
             <div className="flex flex-col gap-0.5">
-              {job.job?.posted_at && (
+              {job.job?.posted_at ? (
                 <span className="flex items-center gap-1 text-xs text-slate-500">
                   <Calendar className="w-3 h-3 shrink-0" />
                   Posted {formatDate(job.job.posted_at)}
                 </span>
+              ) : (
+                <span className="flex items-center gap-1 text-xs text-slate-500">
+                  <Clock className="w-3 h-3 shrink-0" />
+                  Scraped {formatDate(job.job?.scraped_at)}
+                </span>
               )}
-              <span className="flex items-center gap-1 text-xs text-slate-500">
-                <Clock className="w-3 h-3 shrink-0" />
-                Scraped {formatDate(job.job?.scraped_at)}
-              </span>
             </div>
 
             {/* Action buttons */}

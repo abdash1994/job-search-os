@@ -1,15 +1,31 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { SlidersHorizontal, RefreshCw, Search, Bell } from 'lucide-react';
+import { SlidersHorizontal, RefreshCw, Search, Bell, X } from 'lucide-react';
 import { JobCard } from '@/components/JobCard';
-import { FilterPanel } from '@/components/FilterPanel';
+import { FilterPanel, countActiveFilters, SOURCE_LABELS } from '@/components/FilterPanel';
 import { SkeletonCardList } from '@/components/SkeletonCard';
 import { EmptyState } from '@/components/EmptyState';
 import { Button } from '@/components/ui/Button';
-import type { UserJob, JobFilters, JobStatus } from '@/types';
+import type { UserJob, JobFilters, JobStatus, JobType } from '@/types';
+
+const JOB_TYPE_LABELS: Record<JobType, string> = {
+  'full-time': 'Full-time',
+  'part-time': 'Part-time',
+  contract: 'Contract',
+  freelance: 'Freelance',
+  internship: 'Internship',
+};
+
+const POSTED_WITHIN_LABELS: Record<number, string> = {
+  1: 'Last 24h',
+  3: 'Last 3 days',
+  7: 'Last week',
+  14: 'Last 2 weeks',
+};
 
 const DEFAULT_FILTERS: JobFilters = {
+  keyword: '',
   sources: [],
   jobTypes: [],
   country: '',
@@ -24,6 +40,22 @@ const DEFAULT_FILTERS: JobFilters = {
 
 const PAGE_SIZE = 20;
 
+/** Inline chip component for active filter tags. */
+function Chip({ label, onRemove }: { label: string; onRemove: () => void }) {
+  return (
+    <span className="bg-slate-800 text-slate-300 text-xs rounded-full px-2 py-0.5 flex items-center gap-1">
+      {label}
+      <button
+        onClick={onRemove}
+        className="text-slate-500 hover:text-slate-200 transition"
+        aria-label={`Remove ${label} filter`}
+      >
+        <X className="w-3 h-3" />
+      </button>
+    </span>
+  );
+}
+
 export default function JobsPage() {
   const [jobs, setJobs] = useState<UserJob[]>([]);
   const [total, setTotal] = useState(0);
@@ -37,6 +69,7 @@ export default function JobsPage() {
 
   const fetchJobs = useCallback(async (f: JobFilters, append = false) => {
     const params = new URLSearchParams();
+    if (f.keyword) params.set('keyword', f.keyword);
     if (f.sources.length) f.sources.forEach((s) => params.append('source[]', s));
     if (f.jobTypes.length) f.jobTypes.forEach((t) => params.append('job_type[]', t));
     if (f.country) params.set('country', f.country);
@@ -120,6 +153,7 @@ export default function JobsPage() {
   };
 
   const hasMore = jobs.length < total;
+  const activeCount = countActiveFilters(filters);
 
   return (
     <div className="flex flex-col lg:flex-row h-full">
@@ -169,15 +203,83 @@ export default function JobsPage() {
             >
               <RefreshCw className="w-4 h-4" />
             </button>
+            {/* Mobile filter trigger with active count badge */}
             <button
               onClick={() => setShowFilters(true)}
               className="lg:hidden flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800 text-slate-300 text-sm hover:bg-slate-700 transition"
             >
               <SlidersHorizontal className="w-4 h-4" />
               Filters
+              {activeCount > 0 && (
+                <span className="ml-0.5 bg-primary-600 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center font-bold">
+                  {activeCount}
+                </span>
+              )}
             </button>
           </div>
         </div>
+
+        {/* Active filter chips */}
+        {activeCount > 0 && (
+          <div className="flex flex-wrap gap-1.5 -mt-2">
+            {filters.keyword && (
+              <Chip
+                label={`"${filters.keyword}"`}
+                onRemove={() => handleFilterChange({ ...filters, keyword: '', page: 0 })}
+              />
+            )}
+            {filters.sources.map((s) => (
+              <Chip
+                key={s}
+                label={SOURCE_LABELS[s] ?? s}
+                onRemove={() => handleFilterChange({ ...filters, sources: filters.sources.filter((x) => x !== s), page: 0 })}
+              />
+            ))}
+            {filters.jobTypes.map((jt) => (
+              <Chip
+                key={jt}
+                label={JOB_TYPE_LABELS[jt] ?? jt}
+                onRemove={() => handleFilterChange({ ...filters, jobTypes: filters.jobTypes.filter((x) => x !== jt), page: 0 })}
+              />
+            ))}
+            {filters.country && (
+              <Chip
+                label={filters.country}
+                onRemove={() => handleFilterChange({ ...filters, country: '', page: 0 })}
+              />
+            )}
+            {filters.salaryMin > 0 && (
+              <Chip
+                label={`Min $${(filters.salaryMin / 1000).toFixed(0)}k`}
+                onRemove={() => handleFilterChange({ ...filters, salaryMin: 0, page: 0 })}
+              />
+            )}
+            {filters.salaryMax < 300000 && (
+              <Chip
+                label={`Max $${(filters.salaryMax / 1000).toFixed(0)}k`}
+                onRemove={() => handleFilterChange({ ...filters, salaryMax: 300000, page: 0 })}
+              />
+            )}
+            {filters.postedWithinDays !== null && (
+              <Chip
+                label={POSTED_WITHIN_LABELS[filters.postedWithinDays] ?? `Last ${filters.postedWithinDays}d`}
+                onRemove={() => handleFilterChange({ ...filters, postedWithinDays: null, page: 0 })}
+              />
+            )}
+            {filters.minScore > 0 && (
+              <Chip
+                label={`Score ≥${filters.minScore}`}
+                onRemove={() => handleFilterChange({ ...filters, minScore: 0, page: 0 })}
+              />
+            )}
+            {filters.showApplied && (
+              <Chip
+                label="Show Applied"
+                onRemove={() => handleFilterChange({ ...filters, showApplied: false, page: 0 })}
+              />
+            )}
+          </div>
+        )}
 
         {/* Content */}
         {loading ? (

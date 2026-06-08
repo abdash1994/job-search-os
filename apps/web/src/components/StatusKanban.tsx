@@ -14,6 +14,19 @@ const PIPELINE_STAGES: { status: JobStatus; label: string; color: string }[] = [
   { status: 'rejected', label: 'Rejected', color: 'border-danger-500' },
 ];
 
+function getDefaultOpenStages(byStatus: Record<string, UserJob[]>): Set<JobStatus> {
+  let maxCount = -1;
+  let maxStatus: JobStatus = 'saved';
+  for (const { status } of PIPELINE_STAGES) {
+    const count = byStatus[status]?.length ?? 0;
+    if (count > maxCount) {
+      maxCount = count;
+      maxStatus = status;
+    }
+  }
+  return new Set([maxStatus]);
+}
+
 const ALL_STATUSES: JobStatus[] = ['saved', 'applied', 'interviewing', 'offer', 'rejected'];
 
 interface StatusKanbanProps {
@@ -30,20 +43,76 @@ export function StatusKanban({ jobs, onStatusChange, onNotesUpdate }: StatusKanb
     ])
   );
 
+  const [openStages, setOpenStages] = useState<Set<JobStatus>>(
+    () => getDefaultOpenStages(byStatus)
+  );
+
+  const toggleStage = (status: JobStatus) => {
+    setOpenStages((prev) => {
+      const next = new Set(prev);
+      next.has(status) ? next.delete(status) : next.add(status);
+      return next;
+    });
+  };
+
   return (
-    <div className="flex gap-3 overflow-x-auto pb-4 no-scrollbar">
-      {PIPELINE_STAGES.map(({ status, label, color }) => (
-        <KanbanColumn
-          key={status}
-          status={status}
-          label={label}
-          color={color}
-          jobs={byStatus[status] ?? []}
-          onStatusChange={onStatusChange}
-          onNotesUpdate={onNotesUpdate}
-        />
-      ))}
-    </div>
+    <>
+      {/* Mobile: vertical accordion */}
+      <div className="lg:hidden flex flex-col gap-2">
+        {PIPELINE_STAGES.map(({ status, label, color }) => {
+          const stageJobs = byStatus[status] ?? [];
+          const isOpen = openStages.has(status);
+          return (
+            <div key={status} className="bg-slate-900/70 border border-slate-800 rounded-xl overflow-hidden">
+              <button
+                onClick={() => toggleStage(status)}
+                className="flex items-center justify-between w-full px-4 py-3"
+              >
+                <div className="flex items-center gap-2">
+                  <div className={cn('w-2 h-2 rounded-full border-2', color)} />
+                  <span className="text-sm font-semibold text-slate-200">{label}</span>
+                  <span className="text-xs bg-slate-800 text-slate-400 rounded-full px-2 py-0.5">
+                    {stageJobs.length}
+                  </span>
+                </div>
+                <ChevronDown className={cn('w-4 h-4 text-slate-500 transition-transform', isOpen && 'rotate-180')} />
+              </button>
+              {isOpen && (
+                <div className="px-3 pb-3 space-y-2">
+                  {stageJobs.length === 0 ? (
+                    <p className="text-xs text-slate-600 italic py-2 text-center">No jobs here</p>
+                  ) : (
+                    stageJobs.map((job) => (
+                      <KanbanCard
+                        key={job.id}
+                        job={job}
+                        onStatusChange={onStatusChange}
+                        onNotesUpdate={onNotesUpdate}
+                      />
+                    ))
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Desktop: horizontal columns */}
+      <div className="hidden lg:flex gap-3 overflow-x-auto pb-4 no-scrollbar">
+        {PIPELINE_STAGES.map(({ status, label, color }) => (
+          <KanbanColumn
+            key={status}
+            status={status}
+            label={label}
+            color={color}
+            jobs={byStatus[status] ?? []}
+            onStatusChange={onStatusChange}
+            onNotesUpdate={onNotesUpdate}
+          />
+        ))}
+      </div>
+    </>
   );
 }
 

@@ -6,6 +6,7 @@ import { ResumeUploader } from '@/components/ResumeUploader';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { EmptyState } from '@/components/EmptyState';
+import { useToast } from '@/hooks/useToast';
 import type { UserProfile, JobType } from '@/types';
 
 const JOB_TYPE_OPTIONS: { value: JobType; label: string }[] = [
@@ -40,6 +41,7 @@ const getSkills = (p: UserProfile | null): string[] =>
     : [];
 
 export default function ResumePage() {
+  const toast = useToast();
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [rescoring, setRescoring] = useState(false);
@@ -69,6 +71,7 @@ export default function ResumePage() {
     if (!res.ok) throw new Error('Failed to upload resume');
     const updated = await res.json();
     setProfile(updated);
+    toast('Resume saved! Scoring jobs now…', 'success');
   };
 
   const handleRescore = async () => {
@@ -79,6 +82,9 @@ export default function ResumePage() {
       if (!res.ok) throw new Error('Rescoring failed');
       const data = await res.json();
       setRescoredCount(data.scored);
+      toast(`Scored ${data.scored} jobs successfully`, 'success');
+    } catch {
+      toast('Rescoring failed. Please try again.', 'error');
     } finally { setRescoring(false); }
   };
 
@@ -121,6 +127,7 @@ export default function ResumePage() {
         }),
       });
       if (!res.ok) throw new Error('Failed to save preferences');
+      toast('Preferences saved!', 'success');
     } finally { setSaving(false); }
   };
 

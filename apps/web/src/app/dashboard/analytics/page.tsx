@@ -8,6 +8,7 @@ import {
 import { BarChart2, Loader2 } from 'lucide-react';
 import { formatDate } from '@/lib/utils';
 import { createClient } from '@/lib/supabase/client';
+import { getSourceLabel } from '@/lib/sources';
 import type { DailyJobCount, SourceBreakdown, SkillCount, FunnelStage, ScraperRun } from '@/types';
 
 // Color palette for charts
@@ -62,7 +63,7 @@ export default function AnalyticsPage() {
           sourceMap[run.source] = (sourceMap[run.source] ?? 0) + (run.jobs_found ?? 0);
         });
         const sourceBreakdown: SourceBreakdown[] = Object.entries(sourceMap)
-          .map(([source, count]) => ({ source, count }))
+          .map(([source, count]) => ({ source: getSourceLabel(source), count }))
           .sort((a, b) => b.count - a.count);
 
         // Build application funnel from user_jobs if authenticated

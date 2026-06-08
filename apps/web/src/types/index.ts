@@ -103,6 +103,7 @@ export interface ProxyEntry {
 // ---------------------------------------------------------------------------
 
 export interface JobFilters {
+  keyword: string;
   sources: string[];
   jobTypes: JobType[];
   country: string;
