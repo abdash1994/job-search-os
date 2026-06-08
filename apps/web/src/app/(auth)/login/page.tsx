@@ -1,7 +1,7 @@
 'use client';
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { Briefcase, Eye, EyeOff, Loader2 } from 'lucide-react';
 
@@ -9,6 +9,7 @@ type AuthMode = 'login' | 'signup';
 
 export default function LoginPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const supabase = createClient();
 
   const [mode, setMode] = useState<AuthMode>('login');
@@ -18,6 +19,13 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+
+  // Show error from auth callback (e.g. expired confirmation link)
+  useEffect(() => {
+    if (searchParams.get('error') === 'confirmation_failed') {
+      setError('Confirmation link expired or invalid. Please sign up again.');
+    }
+  }, [searchParams]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -44,7 +52,7 @@ export default function LoginPage() {
           email,
           password,
           options: {
-            emailRedirectTo: `${window.location.origin}/dashboard/jobs`,
+            emailRedirectTo: `${window.location.origin}/api/auth/callback?next=/dashboard/jobs`,
           },
         });
 
