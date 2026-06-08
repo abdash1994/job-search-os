@@ -129,7 +129,7 @@ class Storage:
             result = (
                 self._client
                 .table(_USER_PROFILES_TABLE)
-                .select("user_id, resume_text")
+                .select("id, resume_text")
                 .not_.is_("resume_text", "null")
                 .neq("resume_text", "")
                 .execute()
@@ -138,7 +138,7 @@ class Storage:
             logger.info(f"Storage: loaded {len(profiles)} user profiles with resumes")
             return [
                 {
-                    "user_id": p["user_id"],
+                    "user_id": p["id"],
                     "resume_text": p["resume_text"],
                 }
                 for p in profiles

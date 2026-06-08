@@ -413,7 +413,7 @@ class BaseScraper(ABC):
             "description": description.strip(),
             "location": location_info.get("location", "Remote"),
             "country": location_info.get("country", ""),
-            "state": location_info.get("state", ""),
+            "state_region": location_info.get("state", ""),
             "job_type": raw.get("job_type", "full-time"),
             "salary_min": salary_info.get("min"),
             "salary_max": salary_info.get("max"),
@@ -500,17 +500,17 @@ class BaseScraper(ABC):
             Dict with keys: location (str), country (str), state (str).
         """
         if not text:
-            return {"location": "Remote", "country": "", "state": ""}
+            return {"location": "Remote", "country": "", "state_region": ""}
 
         lower = text.lower().strip()
 
         # Check for worldwide/remote first
         for keyword in ("worldwide", "global", "anywhere", "fully remote"):
             if keyword in lower:
-                return {"location": "Worldwide", "country": "Worldwide", "state": ""}
+                return {"location": "Worldwide", "country": "Worldwide", "state_region": ""}
 
         if lower in ("remote", "remote only", "100% remote", "remote work"):
-            return {"location": "Remote", "country": "", "state": ""}
+            return {"location": "Remote", "country": "", "state_region": ""}
 
         # Try to extract country
         country = ""
@@ -536,7 +536,7 @@ class BaseScraper(ABC):
         return {
             "location": location,
             "country": country,
-            "state": state,
+            "state_region": state,
         }
 
     def _extract_skills(self, text: str) -> list[str]:
