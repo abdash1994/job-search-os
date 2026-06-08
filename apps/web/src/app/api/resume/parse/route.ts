@@ -19,11 +19,10 @@ export async function POST(request: Request) {
     let text = '';
 
     if (fileName.endsWith('.pdf')) {
-      // Use the internal lib path to avoid pdf-parse loading test fixtures
-      // that don't exist in Vercel's serverless bundle
-      // eslint-disable-next-line
-      const pdfParse = require('pdf-parse/lib/pdf-parse.js');
-      const result = await pdfParse(buffer);
+      // unpdf works reliably on Vercel serverless (no test fixtures, no canvas dep)
+      const { extractText, getDocumentProxy } = await import('unpdf');
+      const pdf = await getDocumentProxy(new Uint8Array(buffer));
+      const result = await extractText(pdf, { mergePages: true });
       text = result.text;
 
     } else if (fileName.endsWith('.docx') || fileName.endsWith('.doc')) {
@@ -60,7 +59,7 @@ export async function POST(request: Request) {
     const message = err instanceof Error ? err.message : String(err);
     console.error('Resume parse error:', message);
     return NextResponse.json(
-      { error: `Parse failed: ${message}. Try the Paste text tab instead.` },
+      { error: `Could not read file. Try the Paste text tab instead.` },
       { status: 500 }
     );
   }

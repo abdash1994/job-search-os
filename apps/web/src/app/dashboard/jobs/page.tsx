@@ -367,7 +367,10 @@ export default function JobsPage() {
       {/* Back to top */}
       {showBackToTop && (
         <button
-          onClick={() => document.querySelector('main')?.scrollTo({ top: 0, behavior: 'smooth' })}
+          onClick={() => {
+            document.querySelector('main')?.scrollTo({ top: 0, behavior: 'smooth' });
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+          }}
           className="fixed bottom-24 right-4 lg:bottom-6 lg:right-6 z-30 w-10 h-10 rounded-full bg-slate-800 border border-slate-700 text-slate-400 hover:text-white hover:bg-slate-700 flex items-center justify-center shadow-lg transition"
           title="Back to top"
         >
