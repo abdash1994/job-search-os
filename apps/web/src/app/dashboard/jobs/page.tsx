@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { SlidersHorizontal, RefreshCw, Search, Bell, X } from 'lucide-react';
+import { SlidersHorizontal, RefreshCw, Search, Bell, X, ArrowUp } from 'lucide-react';
 import { JobCard } from '@/components/JobCard';
 import { FilterPanel, countActiveFilters, SOURCE_LABELS } from '@/components/FilterPanel';
 import { SkeletonCardList } from '@/components/SkeletonCard';
@@ -66,6 +66,8 @@ export default function JobsPage() {
   const [showFilters, setShowFilters] = useState(false);
   const [hasResume, setHasResume] = useState(false);
   const [newJobsCount, setNewJobsCount] = useState(0);
+  const [showBackToTop, setShowBackToTop] = useState(false);
+  const [onboardingDismissed, setOnboardingDismissed] = useState(true);
 
   const fetchJobs = useCallback(async (f: JobFilters, append = false) => {
     const params = new URLSearchParams();
@@ -94,8 +96,9 @@ export default function JobsPage() {
     }
   }, []);
 
-  // Initial load + new-jobs count
+  // Initial load + new-jobs count + onboarding check
   useEffect(() => {
+    setOnboardingDismissed(!!localStorage.getItem('jobos_onboarded'));
     setLoading(true);
     setError(null);
     Promise.all([
@@ -112,7 +115,7 @@ export default function JobsPage() {
     ]).finally(() => setLoading(false));
   }, [fetchJobs]);
 
-  // Auto-refresh every 10 minutes to pick up new scraper runs
+  // Auto-refresh every 10 minutes
   useEffect(() => {
     const interval = setInterval(() => {
       fetch('/api/jobs/new-count').then((r) => r.json()).then((d) => {
@@ -120,6 +123,15 @@ export default function JobsPage() {
       }).catch(() => {});
     }, 10 * 60 * 1000);
     return () => clearInterval(interval);
+  }, []);
+
+  // Back-to-top: watch scroll on the main container
+  useEffect(() => {
+    const main = document.querySelector('main');
+    if (!main) return;
+    const onScroll = () => setShowBackToTop(main.scrollTop > 400);
+    main.addEventListener('scroll', onScroll, { passive: true });
+    return () => main.removeEventListener('scroll', onScroll);
   }, []);
 
   const handleFilterChange = useCallback((newFilters: JobFilters) => {
@@ -281,6 +293,26 @@ export default function JobsPage() {
           </div>
         )}
 
+        {/* Onboarding banner — first time, no jobs yet */}
+        {!loading && total === 0 && !onboardingDismissed && (
+          <div className="bg-slate-900 border border-primary-500/30 rounded-xl p-5 relative">
+            <button
+              onClick={() => { localStorage.setItem('jobos_onboarded', '1'); setOnboardingDismissed(true); }}
+              className="absolute top-3 right-3 text-slate-500 hover:text-white transition"
+              title="Dismiss"
+            >
+              <X className="w-4 h-4" />
+            </button>
+            <h3 className="text-white font-semibold mb-1">Welcome to Job Search OS</h3>
+            <p className="text-slate-400 text-sm mb-4">Here&#39;s how to get started:</p>
+            <div className="flex flex-col sm:flex-row gap-3">
+              <OnboardingStep num={1} title="Upload your resume" desc="Get relevance scores on every job" href="/dashboard/resume" />
+              <OnboardingStep num={2} title="Jobs arrive automatically" desc="Scraped from 10 boards every 6 hours" href="/dashboard/status" />
+              <OnboardingStep num={3} title="Browse with scores" desc="Filter by relevance, source, salary" href="/dashboard/jobs" />
+            </div>
+          </div>
+        )}
+
         {/* Content */}
         {loading ? (
           <SkeletonCardList count={6} />
@@ -304,19 +336,49 @@ export default function JobsPage() {
             ))}
 
             {hasMore && (
-              <div className="flex justify-center pt-2">
-                <Button
-                  variant="secondary"
-                  loading={loadingMore}
-                  onClick={handleLoadMore}
-                >
-                  Load more ({total - jobs.length} remaining)
-                </Button>
+              <div className="space-y-2 pt-2">
+                <div className="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-primary-600 rounded-full transition-all"
+                    style={{ width: `${Math.round((jobs.length / total) * 100)}%` }}
+                  />
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-slate-500">
+                    Showing {jobs.length} of {total.toLocaleString()} jobs
+                  </span>
+                  <Button variant="secondary" size="sm" loading={loadingMore} onClick={handleLoadMore}>
+                    Load more
+                  </Button>
+                </div>
               </div>
             )}
           </div>
         )}
       </div>
+
+      {/* Back to top */}
+      {showBackToTop && (
+        <button
+          onClick={() => document.querySelector('main')?.scrollTo({ top: 0, behavior: 'smooth' })}
+          className="fixed bottom-24 right-4 lg:bottom-6 lg:right-6 z-30 w-10 h-10 rounded-full bg-slate-800 border border-slate-700 text-slate-400 hover:text-white hover:bg-slate-700 flex items-center justify-center shadow-lg transition"
+          title="Back to top"
+        >
+          <ArrowUp className="w-4 h-4" />
+        </button>
+      )}
     </div>
+  );
+}
+
+function OnboardingStep({ num, title, desc, href }: { num: number; title: string; desc: string; href: string }) {
+  return (
+    <a href={href} className="flex-1 flex items-start gap-3 p-3 bg-slate-800 rounded-lg hover:bg-slate-700 transition group">
+      <span className="flex items-center justify-center w-6 h-6 rounded-full bg-primary-600 text-white text-xs font-bold shrink-0">{num}</span>
+      <div>
+        <p className="text-sm font-medium text-white group-hover:text-primary-300 transition">{title}</p>
+        <p className="text-xs text-slate-400 mt-0.5">{desc}</p>
+      </div>
+    </a>
   );
 }
