@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { SlidersHorizontal, RefreshCw, Search } from 'lucide-react';
+import { SlidersHorizontal, RefreshCw, Search, Bell } from 'lucide-react';
 import { JobCard } from '@/components/JobCard';
 import { FilterPanel } from '@/components/FilterPanel';
 import { SkeletonCardList } from '@/components/SkeletonCard';
@@ -33,6 +33,7 @@ export default function JobsPage() {
   const [filters, setFilters] = useState<JobFilters>(DEFAULT_FILTERS);
   const [showFilters, setShowFilters] = useState(false);
   const [hasResume, setHasResume] = useState(false);
+  const [newJobsCount, setNewJobsCount] = useState(0);
 
   const fetchJobs = useCallback(async (f: JobFilters, append = false) => {
     const params = new URLSearchParams();
@@ -60,7 +61,7 @@ export default function JobsPage() {
     }
   }, []);
 
-  // Initial load
+  // Initial load + new-jobs count
   useEffect(() => {
     setLoading(true);
     setError(null);
@@ -72,8 +73,21 @@ export default function JobsPage() {
           setFilters((f) => ({ ...f, sortBy: 'relevance_score' }));
         }
       }).catch(() => {}),
+      fetch('/api/jobs/new-count').then((r) => r.json()).then((d) => {
+        if (d?.count > 0) setNewJobsCount(d.count);
+      }).catch(() => {}),
     ]).finally(() => setLoading(false));
   }, [fetchJobs]);
+
+  // Auto-refresh every 10 minutes to pick up new scraper runs
+  useEffect(() => {
+    const interval = setInterval(() => {
+      fetch('/api/jobs/new-count').then((r) => r.json()).then((d) => {
+        if (d?.count > 0) setNewJobsCount(d.count);
+      }).catch(() => {});
+    }, 10 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, []);
 
   const handleFilterChange = useCallback((newFilters: JobFilters) => {
     setFilters(newFilters);
@@ -120,6 +134,22 @@ export default function JobsPage() {
 
       {/* Job list */}
       <div className="flex-1 min-w-0 p-4 space-y-4">
+
+        {/* New jobs banner */}
+        {newJobsCount > 0 && (
+          <button
+            onClick={() => {
+              setNewJobsCount(0);
+              setLoading(true);
+              fetchJobs({ ...filters, page: 0 }).finally(() => setLoading(false));
+            }}
+            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-success-500/10 border border-success-500/30 rounded-xl text-success-400 text-sm font-medium hover:bg-success-500/20 transition"
+          >
+            <Bell className="w-4 h-4" />
+            {newJobsCount} new job{newJobsCount !== 1 ? 's' : ''} since your last visit — click to refresh
+          </button>
+        )}
+
         {/* Toolbar */}
         <div className="flex items-center justify-between gap-3">
           <div>

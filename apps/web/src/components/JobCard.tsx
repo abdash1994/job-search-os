@@ -2,13 +2,7 @@
 
 import { useState } from 'react';
 import {
-  MapPin,
-  DollarSign,
-  ExternalLink,
-  Bookmark,
-  CheckCircle,
-  Clock,
-  Calendar,
+  MapPin, DollarSign, ExternalLink, Bookmark, CheckCircle, Clock, Calendar, Eye,
 } from 'lucide-react';
 import { cn, formatDate, formatSalary } from '@/lib/utils';
 import { SourceBadge } from './SourceBadge';
@@ -29,55 +23,82 @@ const JOB_TYPE_LABELS: Record<string, string> = {
   internship: 'Internship',
 };
 
+const TWENTY_FOUR_HOURS_MS = 24 * 60 * 60 * 1000;
+
+function isNew(scrapedAt: string | null | undefined): boolean {
+  if (!scrapedAt) return false;
+  return Date.now() - new Date(scrapedAt).getTime() < TWENTY_FOUR_HOURS_MS;
+}
+
+function isViewed(viewedAt: string | null | undefined): boolean {
+  return !!viewedAt;
+}
+
 export function JobCard({ job, onStatusChange }: JobCardProps) {
   const [isChangingStatus, setIsChangingStatus] = useState(false);
+  const [viewed, setViewed] = useState(isViewed(job.viewed_at));
   const isSaved = job.status === 'saved';
-  const isApplied = ['applied', 'interviewing', 'offer', 'rejected'].includes(job.status);
+  const isApplied = ['applied', 'interviewing', 'offer', 'rejected'].includes(job.status ?? '');
+  const jobIsNew = isNew(job.job?.scraped_at) && !viewed;
 
-  // Derive remote status from location text since there's no is_remote column
   const isRemote =
-    job.job.location?.toLowerCase().includes('remote') ||
-    job.job.location?.toLowerCase().includes('anywhere') ||
+    job.job?.location?.toLowerCase().includes('remote') ||
+    job.job?.location?.toLowerCase().includes('anywhere') ||
     false;
 
   const handleSave = async () => {
     setIsChangingStatus(true);
-    try {
-      await onStatusChange(job.job_id, isSaved ? 'new' : 'saved');
-    } finally {
-      setIsChangingStatus(false);
-    }
+    try { await onStatusChange(job.job_id, isSaved ? 'new' : 'saved'); }
+    finally { setIsChangingStatus(false); }
   };
 
   const handleApply = async () => {
     setIsChangingStatus(true);
-    try {
-      await onStatusChange(job.job_id, isApplied ? 'saved' : 'applied');
-    } finally {
-      setIsChangingStatus(false);
+    try { await onStatusChange(job.job_id, isApplied ? 'saved' : 'applied'); }
+    finally { setIsChangingStatus(false); }
+  };
+
+  const handleView = () => {
+    if (!viewed) {
+      setViewed(true);
+      // Fire and forget — mark as viewed in background
+      fetch(`/api/jobs/${job.job_id}/view`, { method: 'PATCH' }).catch(() => {});
     }
   };
 
   return (
     <article className={cn(
       'group bg-slate-900 border rounded-xl p-4 transition-all hover:border-slate-700',
-      isApplied ? 'border-primary-600/40' : 'border-slate-800'
+      isApplied ? 'border-primary-600/40' : 'border-slate-800',
+      viewed && !isApplied ? 'opacity-80' : ''
     )}>
       <div className="flex items-start gap-3">
         <div className="flex-1 min-w-0">
-          {/* Title + Company */}
+          {/* Title + Company + NEW badge */}
           <div className="flex items-start justify-between gap-2">
             <div className="flex-1 min-w-0">
-              <h3 className="font-semibold text-white text-sm leading-tight line-clamp-2">
-                {job.job.title}
-              </h3>
+              <div className="flex items-center gap-2 flex-wrap">
+                <h3 className="font-semibold text-white text-sm leading-tight line-clamp-2">
+                  {job.job?.title}
+                </h3>
+                {jobIsNew && (
+                  <span className="shrink-0 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-success-500/20 text-success-400 border border-success-500/30 tracking-wide">
+                    NEW
+                  </span>
+                )}
+                {viewed && !isApplied && (
+                  <span className="shrink-0 inline-flex items-center gap-0.5 text-[10px] text-slate-500">
+                    <Eye className="w-2.5 h-2.5" />Viewed
+                  </span>
+                )}
+              </div>
               <p className="text-slate-400 text-xs mt-0.5 font-medium truncate">
-                {job.job.company}
+                {job.job?.company}
               </p>
             </div>
 
-            {/* Score badge — only if scored */}
-            {job.relevance_score !== null && (
+            {/* Score badge */}
+            {job.relevance_score !== null && job.relevance_score !== undefined && (
               <div className="shrink-0">
                 <ScoreBadge score={job.relevance_score} breakdown={job.relevance_breakdown} />
               </div>
@@ -86,41 +107,33 @@ export function JobCard({ job, onStatusChange }: JobCardProps) {
 
           {/* Tags row */}
           <div className="flex flex-wrap items-center gap-1.5 mt-2">
-            <SourceBadge source={job.job.source} />
+            <SourceBadge source={job.job?.source} />
 
-            {job.job.job_type && (
-              <Badge color="slate">
-                {JOB_TYPE_LABELS[job.job.job_type] ?? job.job.job_type}
-              </Badge>
+            {job.job?.job_type && (
+              <Badge color="slate">{JOB_TYPE_LABELS[job.job.job_type] ?? job.job.job_type}</Badge>
             )}
 
-            {isRemote && (
-              <Badge color="teal">Remote</Badge>
-            )}
+            {isRemote && <Badge color="teal">Remote</Badge>}
 
-            {job.job.location && !isRemote && (
+            {job.job?.location && !isRemote && (
               <span className="inline-flex items-center gap-1 text-xs text-slate-400">
                 <MapPin className="w-3 h-3 shrink-0" />
                 <span className="truncate max-w-[120px]">{job.job.location}</span>
               </span>
             )}
 
-            {/* Skills pills — up to 3 */}
-            {Array.isArray(job.job.skills_required) &&
+            {Array.isArray(job.job?.skills_required) &&
               job.job.skills_required.slice(0, 3).map((skill) => (
                 <Badge key={skill} color="slate">{skill}</Badge>
               ))}
 
-            {job.status !== 'new' && (
+            {job.status && job.status !== 'new' && (
               <Badge
                 color={
-                  job.status === 'offer'
-                    ? 'success'
-                    : job.status === 'rejected'
-                    ? 'danger'
-                    : job.status === 'interviewing'
-                    ? 'warning'
-                    : 'primary'
+                  job.status === 'offer' ? 'success'
+                  : job.status === 'rejected' ? 'danger'
+                  : job.status === 'interviewing' ? 'warning'
+                  : 'primary'
                 }
                 dot
               >
@@ -130,7 +143,7 @@ export function JobCard({ job, onStatusChange }: JobCardProps) {
           </div>
 
           {/* Salary */}
-          {(job.job.salary_min || job.job.salary_max) && (
+          {(job.job?.salary_min || job.job?.salary_max) && (
             <p className="flex items-center gap-1 text-xs text-slate-300 mt-1.5 font-medium">
               <DollarSign className="w-3 h-3 text-slate-400 shrink-0" />
               {formatSalary(job.job.salary_min, job.job.salary_max, job.job.salary_currency ?? 'USD')}
@@ -140,7 +153,7 @@ export function JobCard({ job, onStatusChange }: JobCardProps) {
           {/* Dates + actions */}
           <div className="flex items-center justify-between mt-3 pt-2 border-t border-slate-800">
             <div className="flex flex-col gap-0.5">
-              {job.job.posted_at && (
+              {job.job?.posted_at && (
                 <span className="flex items-center gap-1 text-xs text-slate-500">
                   <Calendar className="w-3 h-3 shrink-0" />
                   Posted {formatDate(job.job.posted_at)}
@@ -148,7 +161,7 @@ export function JobCard({ job, onStatusChange }: JobCardProps) {
               )}
               <span className="flex items-center gap-1 text-xs text-slate-500">
                 <Clock className="w-3 h-3 shrink-0" />
-                Scraped {formatDate(job.job.scraped_at)}
+                Scraped {formatDate(job.job?.scraped_at)}
               </span>
             </div>
 
@@ -160,9 +173,8 @@ export function JobCard({ job, onStatusChange }: JobCardProps) {
                 title={isSaved ? 'Unsave' : 'Save job'}
                 className={cn(
                   'p-1.5 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed',
-                  isSaved
-                    ? 'text-primary-400 bg-primary-500/15 hover:bg-primary-500/25'
-                    : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                  isSaved ? 'text-primary-400 bg-primary-500/15 hover:bg-primary-500/25'
+                          : 'text-slate-400 hover:text-white hover:bg-slate-800'
                 )}
               >
                 <Bookmark className={cn('w-4 h-4', isSaved && 'fill-current')} />
@@ -174,19 +186,19 @@ export function JobCard({ job, onStatusChange }: JobCardProps) {
                 title={isApplied ? 'Mark as saved' : 'Mark as applied'}
                 className={cn(
                   'p-1.5 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed',
-                  isApplied
-                    ? 'text-success-400 bg-success-500/15 hover:bg-success-500/25'
-                    : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                  isApplied ? 'text-success-400 bg-success-500/15 hover:bg-success-500/25'
+                            : 'text-slate-400 hover:text-white hover:bg-slate-800'
                 )}
               >
                 <CheckCircle className={cn('w-4 h-4', isApplied && 'fill-current')} />
               </button>
 
               <a
-                href={job.job.url}
+                href={job.job?.url}
                 target="_blank"
                 rel="noopener noreferrer"
                 title="View job"
+                onClick={handleView}
                 className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
               >
                 <ExternalLink className="w-4 h-4" />

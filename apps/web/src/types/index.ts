@@ -49,6 +49,7 @@ export interface UserJob {
   relevance_breakdown: ScoreBreakdown | null;
   notes: string | null;
   applied_at: string | null;
+  viewed_at: string | null;
   created_at: string;
   updated_at: string;
   // Joined from jobs table
