@@ -3,6 +3,7 @@ export const dynamic = 'force-dynamic';
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { DashboardNav } from './DashboardNav';
+import { ScraperStatusPill } from '@/components/ScraperStatusPill';
 
 export default async function DashboardLayout({
   children,
@@ -29,7 +30,8 @@ export default async function DashboardLayout({
           <span className="font-semibold text-white text-sm hidden sm:block">Job Search OS</span>
         </div>
         <div className="flex items-center gap-3">
-          <span className="text-xs text-slate-500 hidden sm:block truncate max-w-[200px]">
+          <ScraperStatusPill />
+          <span className="text-xs text-slate-500 hidden sm:block truncate max-w-[160px]">
             {user.email}
           </span>
           <SignOutButton />
