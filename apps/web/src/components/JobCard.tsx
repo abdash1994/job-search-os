@@ -3,7 +3,6 @@
 import { useState } from 'react';
 import {
   MapPin,
-  Briefcase,
   DollarSign,
   ExternalLink,
   Bookmark,
@@ -34,6 +33,12 @@ export function JobCard({ job, onStatusChange }: JobCardProps) {
   const [isChangingStatus, setIsChangingStatus] = useState(false);
   const isSaved = job.status === 'saved';
   const isApplied = ['applied', 'interviewing', 'offer', 'rejected'].includes(job.status);
+
+  // Derive remote status from location text since there's no is_remote column
+  const isRemote =
+    job.job.location?.toLowerCase().includes('remote') ||
+    job.job.location?.toLowerCase().includes('anywhere') ||
+    false;
 
   const handleSave = async () => {
     setIsChangingStatus(true);
@@ -72,9 +77,9 @@ export function JobCard({ job, onStatusChange }: JobCardProps) {
             </div>
 
             {/* Score badge — only if scored */}
-            {job.score !== null && (
+            {job.relevance_score !== null && (
               <div className="shrink-0">
-                <ScoreBadge score={job.score} breakdown={job.score_breakdown} />
+                <ScoreBadge score={job.relevance_score} breakdown={job.relevance_breakdown} />
               </div>
             )}
           </div>
@@ -89,16 +94,22 @@ export function JobCard({ job, onStatusChange }: JobCardProps) {
               </Badge>
             )}
 
-            {job.job.is_remote && (
+            {isRemote && (
               <Badge color="teal">Remote</Badge>
             )}
 
-            {job.job.location && !job.job.is_remote && (
+            {job.job.location && !isRemote && (
               <span className="inline-flex items-center gap-1 text-xs text-slate-400">
                 <MapPin className="w-3 h-3 shrink-0" />
                 <span className="truncate max-w-[120px]">{job.job.location}</span>
               </span>
             )}
+
+            {/* Skills pills — up to 3 */}
+            {Array.isArray(job.job.skills_required) &&
+              job.job.skills_required.slice(0, 3).map((skill) => (
+                <Badge key={skill} color="slate">{skill}</Badge>
+              ))}
 
             {job.status !== 'new' && (
               <Badge

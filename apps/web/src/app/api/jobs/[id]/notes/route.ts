@@ -20,12 +20,21 @@ export async function PATCH(
   }
 
   const jobId = params.id;
+  const now = new Date().toISOString();
 
+  // Use upsert so the row is created if it doesn't exist yet
   const { data, error } = await supabase
     .from('user_jobs')
-    .update({ notes: body.notes, updated_at: new Date().toISOString() })
-    .eq('user_id', user.id)
-    .eq('job_id', jobId)
+    .upsert(
+      {
+        user_id: user.id,
+        job_id: jobId,
+        notes: body.notes,
+        status: 'saved',
+        updated_at: now,
+      },
+      { onConflict: 'user_id,job_id' }
+    )
     .select()
     .single();
 

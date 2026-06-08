@@ -7,6 +7,7 @@ import {
 } from 'recharts';
 import { BarChart2, Loader2 } from 'lucide-react';
 import { formatDate } from '@/lib/utils';
+import { createClient } from '@/lib/supabase/client';
 import type { DailyJobCount, SourceBreakdown, SkillCount, FunnelStage, ScraperRun } from '@/types';
 
 // Color palette for charts
@@ -28,6 +29,11 @@ export default function AnalyticsPage() {
   useEffect(() => {
     const fetchAnalytics = async () => {
       try {
+        const supabase = createClient();
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+
         const [statusRes] = await Promise.all([
           fetch('/api/scraper/status'),
         ]);
@@ -36,15 +42,14 @@ export default function AnalyticsPage() {
 
         const statusData = await statusRes.json();
 
-        // Derive analytics from scraper data + build mock analytics structure
-        // In production these would be dedicated analytics endpoints
         const runs: ScraperRun[] = statusData.runs ?? [];
 
         // Build daily counts from scraper runs
         const dailyMap: Record<string, number> = {};
         runs.forEach((run: ScraperRun) => {
-          const date = run.started_at.split('T')[0];
-          dailyMap[date] = (dailyMap[date] ?? 0) + run.jobs_found;
+          const date = run.started_at?.split('T')[0] || '';
+          if (!date) return;
+          dailyMap[date] = (dailyMap[date] ?? 0) + (run.jobs_found ?? 0);
         });
         const dailyCounts: DailyJobCount[] = Object.entries(dailyMap)
           .sort(([a], [b]) => a.localeCompare(b))
@@ -54,17 +59,39 @@ export default function AnalyticsPage() {
         // Source breakdown from runs
         const sourceMap: Record<string, number> = {};
         runs.forEach((run: ScraperRun) => {
-          sourceMap[run.source] = (sourceMap[run.source] ?? 0) + run.jobs_found;
+          sourceMap[run.source] = (sourceMap[run.source] ?? 0) + (run.jobs_found ?? 0);
         });
         const sourceBreakdown: SourceBreakdown[] = Object.entries(sourceMap)
           .map(([source, count]) => ({ source, count }))
           .sort((a, b) => b.count - a.count);
 
+        // Build application funnel from user_jobs if authenticated
+        let funnel: FunnelStage[] = [];
+        if (user) {
+          const { data: userJobs } = await supabase
+            .from('user_jobs')
+            .select('status')
+            .eq('user_id', user.id);
+
+          if (userJobs && userJobs.length > 0) {
+            const statusOrder: Array<FunnelStage['stage']> = [
+              'saved', 'applied', 'interviewing', 'offer', 'rejected',
+            ];
+            const counts: Record<string, number> = {};
+            userJobs.forEach(({ status }) => {
+              counts[status] = (counts[status] ?? 0) + 1;
+            });
+            funnel = statusOrder
+              .filter((s) => (counts[s] ?? 0) > 0)
+              .map((stage) => ({ stage, count: counts[stage] ?? 0 }));
+          }
+        }
+
         setData({
           dailyCounts,
           sourceBreakdown,
           topSkills: [],
-          funnel: statusData.funnel ?? [],
+          funnel,
           recentRuns: runs.slice(0, 10),
         });
       } catch (err) {
@@ -167,7 +194,7 @@ export default function AnalyticsPage() {
           )}
         </ChartCard>
 
-        {/* Application funnel */}
+        {/* Application funnel — computed from real user_jobs data */}
         <ChartCard title="Application funnel">
           {data?.funnel && data.funnel.length > 0 ? (
             <ResponsiveContainer width="100%" height={200}>
@@ -238,7 +265,7 @@ export default function AnalyticsPage() {
                   <tr key={run.id} className="text-slate-300">
                     <td className="py-2 capitalize font-medium">{run.source}</td>
                     <td className="py-2 text-slate-400 hidden sm:table-cell">
-                      {formatDate(run.started_at)}
+                      {run.started_at?.split('T')[0] || ''}
                     </td>
                     <td className="py-2 text-right">{run.jobs_found}</td>
                     <td className="py-2 text-right text-success-400">+{run.jobs_new}</td>
@@ -277,15 +304,16 @@ function EmptyChart({ message = 'No data yet' }: { message?: string }) {
 }
 
 function StatusDot({ status }: { status: ScraperRun['status'] }) {
-  const styles = {
+  const styles: Record<string, string> = {
     success: 'bg-success-500',
     running: 'bg-primary-500 animate-pulse',
-    failed: 'bg-danger-500',
-    partial: 'bg-warning-500',
+    error: 'bg-danger-500',
+    blocked: 'bg-warning-500',
   };
+  const dotClass = styles[status] ?? styles['error'];
   return (
     <span className="flex items-center gap-1.5">
-      <span className={`w-2 h-2 rounded-full ${styles[status]}`} />
+      <span className={`w-2 h-2 rounded-full ${dotClass}`} />
       <span className="capitalize">{status}</span>
     </span>
   );

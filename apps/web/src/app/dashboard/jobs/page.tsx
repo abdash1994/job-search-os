@@ -18,7 +18,7 @@ const DEFAULT_FILTERS: JobFilters = {
   postedWithinDays: null,
   minScore: 0,
   showApplied: false,
-  sortBy: 'date_scraped',
+  sortBy: 'scraped_at',
   page: 0,
 };
 
@@ -69,7 +69,7 @@ export default function JobsPage() {
       fetch('/api/resume').then((r) => r.json()).then((d) => {
         if (d?.resume_text) {
           setHasResume(true);
-          setFilters((f) => ({ ...f, sortBy: 'score' }));
+          setFilters((f) => ({ ...f, sortBy: 'relevance_score' }));
         }
       }).catch(() => {}),
     ]).finally(() => setLoading(false));

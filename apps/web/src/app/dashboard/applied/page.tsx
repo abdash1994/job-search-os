@@ -1,10 +1,11 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Briefcase, TrendingUp, CheckCircle, BarChart2 } from 'lucide-react';
+import { Briefcase, TrendingUp, BarChart2, CheckCircle } from 'lucide-react';
 import { StatusKanban } from '@/components/StatusKanban';
 import { SkeletonCardList } from '@/components/SkeletonCard';
 import { EmptyState } from '@/components/EmptyState';
+import { createClient } from '@/lib/supabase/client';
 import type { UserJob, JobStatus } from '@/types';
 
 export default function AppliedPage() {
@@ -13,17 +14,37 @@ export default function AppliedPage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetchApplied();
+    fetchTracked();
   }, []);
 
-  const fetchApplied = async () => {
+  const fetchTracked = async () => {
     setLoading(true);
+    setError(null);
     try {
-      const res = await fetch('/api/jobs?show_applied=true&sort_by=date_scraped&limit=200');
-      if (!res.ok) throw new Error('Failed to load');
-      const data = await res.json();
-      // Only show tracked jobs (not 'new')
-      setJobs(data.jobs.filter((j: UserJob) => j.status !== 'new'));
+      const supabase = createClient();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user) throw new Error('Not authenticated');
+
+      // Query user_jobs joined to jobs — all non-new tracked jobs
+      const { data, error: dbError } = await supabase
+        .from('user_jobs')
+        .select('*, jobs(*)')
+        .eq('user_id', user.id)
+        .neq('status', 'new')
+        .order('updated_at', { ascending: false });
+
+      if (dbError) throw new Error(dbError.message);
+
+      // Reshape: Supabase returns joined table as `jobs` key; rename to `job`
+      const shaped: UserJob[] = (data ?? []).map((row) => {
+        const { jobs: jobRow, ...rest } = row as typeof row & { jobs: UserJob['job'] };
+        return { ...rest, job: jobRow } as UserJob;
+      });
+
+      setJobs(shaped);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load');
     } finally {
@@ -32,12 +53,20 @@ export default function AppliedPage() {
   };
 
   const handleStatusChange = async (jobId: string, status: JobStatus) => {
-    const res = await fetch(`/api/jobs/${jobId}/status`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status }),
-    });
-    if (!res.ok) return;
+    const supabase = createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return;
+
+    const { error } = await supabase
+      .from('user_jobs')
+      .upsert(
+        { user_id: user.id, job_id: jobId, status, updated_at: new Date().toISOString() },
+        { onConflict: 'user_id,job_id' }
+      );
+
+    if (error) return;
     setJobs((prev) => prev.map((j) => (j.job_id === jobId ? { ...j, status } : j)));
   };
 
@@ -53,7 +82,7 @@ export default function AppliedPage() {
     setJobs((prev) => prev.map((j) => (j.id === userJobId ? { ...j, notes } : j)));
   };
 
-  // Stats
+  // Stats computed from tracked jobs
   const applied = jobs.filter((j) => ['applied', 'interviewing', 'offer', 'rejected'].includes(j.status));
   const active = jobs.filter((j) => ['applied', 'interviewing', 'offer'].includes(j.status));
   const responded = jobs.filter((j) => ['interviewing', 'offer', 'rejected'].includes(j.status));

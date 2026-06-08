@@ -204,7 +204,7 @@ function SiteCard({ site }: { site: ScraperStatus['perSite'][string] }) {
     down: { color: 'text-danger-400', bg: 'bg-danger-500', label: 'Down' },
     unknown: { color: 'text-slate-400', bg: 'bg-slate-500', label: 'Unknown' },
   };
-  const cfg = statusConfig[site.status];
+  const cfg = statusConfig[site.status] ?? statusConfig.unknown;
 
   return (
     <div className="bg-slate-900 border border-slate-800 rounded-xl p-3 space-y-2">
@@ -228,27 +228,32 @@ function SiteCard({ site }: { site: ScraperStatus['perSite'][string] }) {
 }
 
 function RunRow({ run }: { run: ScraperRun }) {
-  const statusBadge = {
+  const statusBadge: Record<string, React.ReactNode> = {
     success: <Badge color="success" dot>Success</Badge>,
     running: <Badge color="primary" dot>Running</Badge>,
-    failed: <Badge color="danger" dot>Failed</Badge>,
-    partial: <Badge color="warning" dot>Partial</Badge>,
+    error: <Badge color="danger" dot>Error</Badge>,
+    blocked: <Badge color="warning" dot>Blocked</Badge>,
   };
 
-  const duration = run.duration_seconds
-    ? run.duration_seconds < 60
-      ? `${run.duration_seconds}s`
-      : `${Math.round(run.duration_seconds / 60)}m`
+  // duration_ms from DB — convert to a human-readable string
+  const durationSec = Math.round((run.duration_ms ?? 0) / 1000);
+  const duration = run.duration_ms
+    ? durationSec < 60
+      ? `${durationSec}s`
+      : `${Math.round(durationSec / 60)}m`
     : '—';
+
+  // Guard against null started_at
+  const startedLabel = run.started_at?.split('T')[0] || 'Unknown';
 
   return (
     <tr className="text-slate-300 hover:bg-slate-800/30 transition">
       <td className="px-4 py-2.5 font-medium capitalize">{run.source}</td>
-      <td className="px-4 py-2.5 text-slate-400 hidden md:table-cell">{formatDate(run.started_at)}</td>
+      <td className="px-4 py-2.5 text-slate-400 hidden md:table-cell">{startedLabel}</td>
       <td className="px-4 py-2.5 text-slate-400 hidden sm:table-cell">{duration}</td>
       <td className="px-4 py-2.5 text-right">{run.jobs_found}</td>
       <td className="px-4 py-2.5 text-right text-success-400">+{run.jobs_new}</td>
-      <td className="px-4 py-2.5">{statusBadge[run.status]}</td>
+      <td className="px-4 py-2.5">{statusBadge[run.status] ?? statusBadge['error']}</td>
       <td className="px-4 py-2.5 text-slate-500 hidden lg:table-cell truncate max-w-[100px]">
         {run.proxy_used ?? '—'}
       </td>

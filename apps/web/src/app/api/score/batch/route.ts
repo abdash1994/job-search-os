@@ -16,11 +16,11 @@ export async function POST() {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  // Load user profile with resume
+  // Load user profile — PK is `id`, skills live inside resume_parsed JSONB
   const { data: profile } = await supabase
     .from('user_profiles')
-    .select('resume_text, skills')
-    .eq('user_id', user.id)
+    .select('resume_text, resume_parsed')
+    .eq('id', user.id)
     .single();
 
   if (!profile?.resume_text) {
@@ -31,29 +31,40 @@ export async function POST() {
   }
 
   const resumeText: string = profile.resume_text;
-  const resumeSkills: string[] = profile.skills ?? extractSkills(resumeText);
+  const parsedResume = (profile.resume_parsed as Record<string, unknown>) ?? {};
+  const resumeSkills: string[] =
+    Array.isArray(parsedResume.skills)
+      ? (parsedResume.skills as string[])
+      : extractSkills(resumeText);
 
-  // Fetch jobs that this user hasn't scored yet (no user_jobs row with a score)
-  const { data: userJobs } = await supabase
+  // Find job_ids that already have a relevance_score recorded
+  const { data: scoredRows } = await supabase
     .from('user_jobs')
     .select('job_id')
     .eq('user_id', user.id)
-    .not('score', 'is', null);
+    .not('relevance_score', 'is', null);
 
-  const alreadyScoredIds = new Set((userJobs ?? []).map((uj) => uj.job_id));
+  const alreadyScoredIds = (scoredRows ?? []).map((uj) => uj.job_id);
 
-  // Get unscored jobs (limit 500 per batch to avoid timeout)
-  const { data: jobs } = await supabase
+  // Build the unscored jobs query
+  let jobsQuery = supabase
     .from('jobs')
     .select('id, title, description')
-    .not('id', 'in', `(${Array.from(alreadyScoredIds).join(',') || 'null'})`)
+    .eq('is_active', true)
     .limit(500);
+
+  // Only add the exclusion filter when there are already-scored jobs to exclude
+  if (alreadyScoredIds.length > 0) {
+    jobsQuery = jobsQuery.not('id', 'in', `(${alreadyScoredIds.join(',')})`);
+  }
+
+  const { data: jobs } = await jobsQuery;
 
   if (!jobs || jobs.length === 0) {
     return NextResponse.json({ scored: 0, message: 'All jobs already scored.' });
   }
 
-  // Score each job
+  // Score each job that has a description
   const upserts = jobs
     .filter((j) => j.description)
     .map((job) => {
@@ -62,8 +73,8 @@ export async function POST() {
         user_id: user.id,
         job_id: job.id,
         status: 'new' as const,
-        score: result.overall,
-        score_breakdown: result,
+        relevance_score: result.overall,
+        relevance_breakdown: result,
         updated_at: new Date().toISOString(),
       };
     });

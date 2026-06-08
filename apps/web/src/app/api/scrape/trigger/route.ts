@@ -13,26 +13,32 @@ export async function POST() {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  // Insert a trigger record that the scraper workers poll
-  // (The actual scraper is a separate Python service that watches for trigger events)
-  const { error } = await supabase.from('scraper_triggers').insert({
-    user_id: user.id,
-    triggered_at: new Date().toISOString(),
-    status: 'pending',
+  // The scraper runs on a GitHub Actions schedule every 6 hours.
+  // We signal intent by inserting a `running` record into scraper_runs
+  // that the GHA workflow can detect, or simply acknowledge the request.
+  const { error } = await supabase.from('scraper_runs').insert({
+    source: 'manual_trigger',
+    started_at: new Date().toISOString(),
+    status: 'running',
+    jobs_found: 0,
+    jobs_new: 0,
   });
 
   if (error) {
-    // Fallback: if the scraper_triggers table doesn't exist, return a helpful message
-    if (error.code === '42P01') {
-      return NextResponse.json(
-        { message: 'Trigger signal sent. The scraper will run on its next scheduled cycle.' },
-        { status: 200 }
-      );
-    }
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    // Graceful fallback — if insert fails for any reason, still return a
+    // helpful message rather than a hard error, since the GHA schedule will
+    // pick up the next cycle automatically.
+    return NextResponse.json(
+      {
+        message:
+          'Scraper is scheduled via GitHub Actions every 6 hours. Manual trigger signal could not be recorded, but the scraper will run on its next scheduled cycle.',
+      },
+      { status: 200 }
+    );
   }
 
   return NextResponse.json({
-    message: 'Scrape job triggered. Results will appear in 2–5 minutes.',
+    message:
+      'Trigger signal recorded. The scraper runs via GitHub Actions on a 6-hour schedule — results will appear after the next run completes.',
   });
 }

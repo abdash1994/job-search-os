@@ -18,7 +18,7 @@ export async function GET() {
   const { data: profile } = await supabase
     .from('user_profiles')
     .select('*')
-    .eq('user_id', user.id)
+    .eq('id', user.id)
     .single();
 
   if (!profile) {
@@ -46,26 +46,46 @@ export async function POST(request: NextRequest) {
 
   const now = new Date().toISOString();
 
+  // Start with existing profile data so we can merge JSONB fields
+  const { data: existing } = await supabase
+    .from('user_profiles')
+    .select('resume_parsed, preferences')
+    .eq('id', user.id)
+    .single();
+
+  const currentResumeParsed: Record<string, unknown> = (existing?.resume_parsed as Record<string, unknown>) ?? {};
+  const currentPreferences: Record<string, unknown> = (existing?.preferences as Record<string, unknown>) ?? {};
+
   const updateData: Record<string, unknown> = {
-    user_id: user.id,
+    id: user.id,
     updated_at: now,
   };
 
+  // Resume text — store directly and extract skills into resume_parsed
   if (typeof body.resume_text === 'string' && body.resume_text.trim()) {
     updateData.resume_text = body.resume_text;
-    updateData.resume_uploaded_at = now;
-    // Extract and store skills from resume
-    updateData.skills = extractSkills(body.resume_text);
+    const extractedSkills = extractSkills(body.resume_text);
+    updateData.resume_parsed = {
+      ...currentResumeParsed,
+      skills: extractedSkills,
+      parsed_at: now,
+    };
   }
 
-  if (Array.isArray(body.preferred_roles)) updateData.preferred_roles = body.preferred_roles;
-  if (Array.isArray(body.preferred_locations)) updateData.preferred_locations = body.preferred_locations;
-  if (typeof body.min_salary === 'number') updateData.min_salary = body.min_salary;
-  if (Array.isArray(body.job_types)) updateData.job_types = body.job_types;
+  // Preferences — merge into preferences JSONB column
+  const updatedPreferences: Record<string, unknown> = { ...currentPreferences };
+  if (Array.isArray(body.preferred_roles)) updatedPreferences.roles = body.preferred_roles;
+  if (Array.isArray(body.preferred_locations)) updatedPreferences.locations = body.preferred_locations;
+  if (typeof body.min_salary === 'number') updatedPreferences.salary_min = body.min_salary;
+  if (Array.isArray(body.job_types)) updatedPreferences.job_types = body.job_types;
+
+  if (Object.keys(updatedPreferences).length > 0) {
+    updateData.preferences = updatedPreferences;
+  }
 
   const { data, error } = await supabase
     .from('user_profiles')
-    .upsert(updateData, { onConflict: 'user_id' })
+    .upsert(updateData, { onConflict: 'id' })
     .select()
     .single();
 

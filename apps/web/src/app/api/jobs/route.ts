@@ -26,15 +26,68 @@ export async function GET(request: NextRequest) {
     : null;
   const minScore = searchParams.get('min_score') ? Number(searchParams.get('min_score')) : 0;
   const showApplied = searchParams.get('show_applied') === 'true';
-  const sortBy = (searchParams.get('sort_by') ?? 'date_scraped') as 'score' | 'date_posted' | 'date_scraped';
+  const sortBy = (searchParams.get('sort_by') ?? 'scraped_at') as 'relevance_score' | 'date_posted' | 'scraped_at';
   const page = Math.max(0, Number(searchParams.get('page') ?? '0'));
   const limit = Math.min(50, Math.max(1, Number(searchParams.get('limit') ?? '20')));
   const offset = page * limit;
 
-  // Build jobs query with all filters
+  // When sorting by relevance we drive the query from user_jobs so we can
+  // order on the DB-side relevance_score column and skip unscored rows.
+  if (sortBy === 'relevance_score') {
+    let ujQuery = supabase
+      .from('user_jobs')
+      .select('*, jobs!inner(*)', { count: 'exact' })
+      .eq('user_id', user.id)
+      .not('relevance_score', 'is', null)
+      .order('relevance_score', { ascending: false, nullsFirst: false });
+
+    if (!showApplied) {
+      ujQuery = ujQuery.not('status', 'in', '(applied,interviewing,offer,rejected)');
+    }
+    if (minScore > 0) {
+      ujQuery = ujQuery.gte('relevance_score', minScore);
+    }
+
+    // Apply job-level filters via the inner-joined jobs table
+    if (sources.length > 0) ujQuery = ujQuery.in('jobs.source', sources);
+    if (jobTypes.length > 0) ujQuery = ujQuery.in('jobs.job_type', jobTypes);
+    if (country) ujQuery = ujQuery.ilike('jobs.country', `%${country}%`);
+    if (salaryMin !== null) ujQuery = ujQuery.gte('jobs.salary_min', salaryMin);
+    if (salaryMax !== null) ujQuery = ujQuery.lte('jobs.salary_max', salaryMax);
+    if (postedWithinDays) {
+      const since = new Date();
+      since.setDate(since.getDate() - postedWithinDays);
+      ujQuery = ujQuery.gte('jobs.posted_at', since.toISOString());
+    }
+
+    ujQuery = ujQuery.range(offset, offset + limit - 1);
+
+    const { data: userJobs, error, count } = await ujQuery;
+
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    // Reshape: the joined jobs row comes back as `jobs` key
+    const merged = (userJobs ?? []).map((uj) => {
+      const { jobs: job, ...rest } = uj as typeof uj & { jobs: Record<string, unknown> };
+      return { ...rest, job };
+    });
+
+    return NextResponse.json({
+      jobs: merged,
+      total: count ?? 0,
+      page,
+      limit,
+      hasMore: offset + limit < (count ?? 0),
+    });
+  }
+
+  // Date-based sorts: query jobs directly then merge user_jobs
   let query = supabase
     .from('jobs')
-    .select('*', { count: 'exact' });
+    .select('*', { count: 'exact' })
+    .eq('is_active', true);
 
   if (sources.length > 0) query = query.in('source', sources);
   if (jobTypes.length > 0) query = query.in('job_type', jobTypes);
@@ -48,14 +101,16 @@ export async function GET(request: NextRequest) {
     query = query.gte('posted_at', since.toISOString());
   }
 
-  // Sort by date fields on DB side
   if (sortBy === 'date_posted') {
     query = query.order('posted_at', { ascending: false, nullsFirst: false });
   } else {
     query = query.order('scraped_at', { ascending: false });
   }
 
-  query = query.range(offset, offset + limit - 1);
+  // Fetch a larger window so we still have enough rows after filtering applied
+  // jobs client-side. We'll slice to the requested limit afterwards.
+  const fetchLimit = showApplied ? limit : limit + 50;
+  query = query.range(offset, offset + fetchLimit - 1);
 
   const { data: rawJobs, error: jobsError, count } = await query;
 
@@ -65,34 +120,35 @@ export async function GET(request: NextRequest) {
 
   const jobs = rawJobs ?? [];
 
-  // Fetch user_jobs for these job IDs to get per-user status/scores
+  // Fetch user_jobs rows for these job IDs so we know per-user status/scores
   const jobIds = jobs.map((j) => j.id);
-  const { data: userJobs } = await supabase
-    .from('user_jobs')
-    .select('*')
-    .eq('user_id', user.id)
-    .in('job_id', jobIds);
+  const { data: userJobs } = jobIds.length
+    ? await supabase
+        .from('user_jobs')
+        .select('*')
+        .eq('user_id', user.id)
+        .in('job_id', jobIds)
+    : { data: [] };
 
   const userJobMap = new Map((userJobs ?? []).map((uj) => [uj.job_id, uj]));
 
-  // Merge: create synthetic UserJob for jobs without a user_jobs row
+  // Merge: create a synthetic UserJob for jobs without a user_jobs row
   const mergedJobs = jobs
     .map((job) => {
       const uj = userJobMap.get(job.id);
       if (uj) {
         return { ...uj, job };
       }
-      // Default row for untracked job
       return {
         id: `${user.id}:${job.id}`,
         user_id: user.id,
         job_id: job.id,
         status: 'new' as const,
-        score: null,
-        score_breakdown: null,
+        relevance_score: null,
+        relevance_breakdown: null,
         notes: null,
         applied_at: null,
-        created_at: job.created_at,
+        created_at: job.scraped_at,
         updated_at: job.scraped_at,
         job,
       };
@@ -101,14 +157,12 @@ export async function GET(request: NextRequest) {
       if (!showApplied && ['applied', 'interviewing', 'offer', 'rejected'].includes(j.status)) {
         return false;
       }
-      if (minScore > 0 && (j.score === null || j.score < minScore)) return false;
+      if (minScore > 0 && (j.relevance_score === null || j.relevance_score < minScore)) {
+        return false;
+      }
       return true;
-    });
-
-  // If sort is by score, sort in-memory after merge
-  if (sortBy === 'score') {
-    mergedJobs.sort((a, b) => (b.score ?? -1) - (a.score ?? -1));
-  }
+    })
+    .slice(0, limit);
 
   return NextResponse.json({
     jobs: mergedJobs,

@@ -6,16 +6,31 @@ import { cn } from '@/lib/utils';
 import { Button } from './ui/Button';
 import type { JobFilters, JobType, SortBy } from '@/types';
 
+// Exact source identifiers that match the scraper sources in the DB
 const ALL_SOURCES = [
-  'linkedin', 'indeed', 'remoteok', 'weworkremotely', 'remotive',
-  'jobspresso', 'ycombinator', 'glassdoor', 'angel', 'greenhouse',
+  'weworkremotely',
+  'workingnomads',
+  'remote_co',
+  'nodesk',
+  'remote100k',
+  'skipthedrive',
+  'justremote',
+  'topstartups',
+  'wellfound',
+  'crunchbase',
 ];
 
 const SOURCE_LABELS: Record<string, string> = {
-  linkedin: 'LinkedIn', indeed: 'Indeed', remoteok: 'Remote OK',
-  weworkremotely: 'We Work Remotely', remotive: 'Remotive',
-  jobspresso: 'Jobspresso', ycombinator: 'YC Jobs',
-  glassdoor: 'Glassdoor', angel: 'AngelList', greenhouse: 'Greenhouse',
+  weworkremotely: 'We Work Remotely',
+  workingnomads: 'Working Nomads',
+  remote_co: 'Remote.co',
+  nodesk: 'NoDesk',
+  remote100k: 'Remote 100K',
+  skipthedrive: 'Skip The Drive',
+  justremote: 'JustRemote',
+  topstartups: 'Top Startups',
+  wellfound: 'Wellfound',
+  crunchbase: 'Crunchbase',
 };
 
 const JOB_TYPES: { value: JobType; label: string }[] = [
@@ -34,9 +49,9 @@ const POSTED_WITHIN_OPTIONS = [
 ];
 
 const SORT_OPTIONS: { value: SortBy; label: string }[] = [
-  { value: 'score', label: 'Relevance score' },
+  { value: 'relevance_score', label: 'Relevance score' },
   { value: 'date_posted', label: 'Date posted' },
-  { value: 'date_scraped', label: 'Date scraped' },
+  { value: 'scraped_at', label: 'Date scraped' },
 ];
 
 interface FilterPanelProps {
@@ -68,7 +83,10 @@ export function FilterPanel({ filters, onChange, hasResume, isMobileOpen, onMobi
   const resetFilters = () =>
     onChange({
       sources: [], jobTypes: [], country: '', salaryMin: 0, salaryMax: 300000,
-      postedWithinDays: null, minScore: 0, showApplied: false, sortBy: hasResume ? 'score' : 'date_posted', page: 0,
+      postedWithinDays: null, minScore: 0, showApplied: false,
+      // Default sort: relevance if resume uploaded, otherwise scraped_at
+      sortBy: hasResume ? 'relevance_score' : 'scraped_at',
+      page: 0,
     });
 
   const content = (
@@ -87,7 +105,7 @@ export function FilterPanel({ filters, onChange, hasResume, isMobileOpen, onMobi
                 className="accent-primary-500"
               />
               <span className="text-sm text-slate-300">{opt.label}</span>
-              {opt.value === 'score' && !hasResume && (
+              {opt.value === 'relevance_score' && !hasResume && (
                 <span className="text-xs text-slate-500">(upload resume)</span>
               )}
             </label>
@@ -106,7 +124,7 @@ export function FilterPanel({ filters, onChange, hasResume, isMobileOpen, onMobi
                 onChange={() => toggleSource(src)}
                 className="rounded accent-primary-500"
               />
-              <span className="text-sm text-slate-300">{SOURCE_LABELS[src]}</span>
+              <span className="text-sm text-slate-300">{SOURCE_LABELS[src] ?? src}</span>
             </label>
           ))}
         </div>
@@ -238,8 +256,6 @@ export function FilterPanel({ filters, onChange, hasResume, isMobileOpen, onMobi
     </div>
   );
 
-  // Desktop: static sidebar
-  // Mobile: slide-in overlay
   return (
     <>
       {/* Desktop sidebar */}

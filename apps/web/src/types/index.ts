@@ -12,7 +12,7 @@ export type JobStatus =
 
 export type JobType = 'full-time' | 'part-time' | 'contract' | 'freelance' | 'internship';
 
-export type SortBy = 'score' | 'date_posted' | 'date_scraped';
+export type SortBy = 'relevance_score' | 'date_posted' | 'scraped_at';
 
 // ---------------------------------------------------------------------------
 // Core data models (mirror Supabase schema)
@@ -24,6 +24,7 @@ export interface Job {
   company: string;
   location: string | null;
   country: string | null;
+  state_region: string | null;
   job_type: JobType | null;
   description: string | null;
   url: string;
@@ -31,11 +32,12 @@ export interface Job {
   salary_min: number | null;
   salary_max: number | null;
   salary_currency: string | null;
-  skills: string[] | null;
+  job_categories: string[] | null;
+  skills_required: string[] | null;
   posted_at: string | null;
   scraped_at: string;
-  is_remote: boolean;
-  created_at: string;
+  is_active: boolean;
+  raw_data: Record<string, unknown> | null;
 }
 
 export interface UserJob {
@@ -43,8 +45,8 @@ export interface UserJob {
   user_id: string;
   job_id: string;
   status: JobStatus;
-  score: number | null;
-  score_breakdown: ScoreBreakdown | null;
+  relevance_score: number | null;
+  relevance_breakdown: ScoreBreakdown | null;
   notes: string | null;
   applied_at: string | null;
   created_at: string;
@@ -62,14 +64,9 @@ export interface ScoreBreakdown {
 
 export interface UserProfile {
   id: string;
-  user_id: string;
   resume_text: string | null;
-  resume_uploaded_at: string | null;
-  preferred_roles: string[];
-  preferred_locations: string[];
-  min_salary: number | null;
-  job_types: JobType[];
-  skills: string[];
+  resume_parsed: Record<string, unknown>;
+  preferences: Record<string, unknown>;
   created_at: string;
   updated_at: string;
 }
@@ -78,29 +75,26 @@ export interface ScraperRun {
   id: string;
   source: string;
   started_at: string;
-  finished_at: string | null;
-  duration_seconds: number | null;
+  completed_at: string | null;
+  duration_ms: number | null;
   jobs_found: number;
   jobs_new: number;
-  status: 'running' | 'success' | 'failed' | 'partial';
+  status: 'running' | 'success' | 'blocked' | 'error';
   error_message: string | null;
   proxy_used: string | null;
-  created_at: string;
 }
 
 export interface ProxyEntry {
   id: string;
-  host: string;
-  port: number;
-  protocol: 'http' | 'https' | 'socks5';
-  username: string | null;
+  proxy_url: string;
+  proxy_type: string;
   is_active: boolean;
+  last_used: string | null;
+  last_checked: string | null;
   success_count: number;
-  failure_count: number;
-  last_used_at: string | null;
-  last_success_at: string | null;
-  response_time_ms: number | null;
-  created_at: string;
+  fail_count: number;
+  avg_latency_ms: number | null;
+  country: string | null;
 }
 
 // ---------------------------------------------------------------------------
