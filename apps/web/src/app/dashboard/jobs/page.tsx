@@ -125,13 +125,20 @@ export default function JobsPage() {
     return () => clearInterval(interval);
   }, []);
 
-  // Back-to-top: watch scroll on the main container
+  // Back-to-top: watch both main container scroll and window scroll
   useEffect(() => {
+    const check = () => {
+      const main = document.querySelector('main');
+      const scrolled = Math.max(main?.scrollTop ?? 0, window.scrollY);
+      setShowBackToTop(scrolled > 400);
+    };
     const main = document.querySelector('main');
-    if (!main) return;
-    const onScroll = () => setShowBackToTop(main.scrollTop > 400);
-    main.addEventListener('scroll', onScroll, { passive: true });
-    return () => main.removeEventListener('scroll', onScroll);
+    main?.addEventListener('scroll', check, { passive: true });
+    window.addEventListener('scroll', check, { passive: true });
+    return () => {
+      main?.removeEventListener('scroll', check);
+      window.removeEventListener('scroll', check);
+    };
   }, []);
 
   const handleFilterChange = useCallback((newFilters: JobFilters) => {
