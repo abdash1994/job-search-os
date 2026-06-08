@@ -19,9 +19,10 @@ export async function POST(request: Request) {
     let text = '';
 
     if (fileName.endsWith('.pdf')) {
-      // pdf-parse uses CJS exports; require is intentional here
+      // Use the internal lib path to avoid pdf-parse loading test fixtures
+      // that don't exist in Vercel's serverless bundle
       // eslint-disable-next-line
-      const pdfParse = require('pdf-parse');
+      const pdfParse = require('pdf-parse/lib/pdf-parse.js');
       const result = await pdfParse(buffer);
       text = result.text;
 
@@ -40,7 +41,7 @@ export async function POST(request: Request) {
 
     } else {
       return NextResponse.json(
-        { error: `Unsupported file type "${file.name}". Supported: PDF, DOCX, DOC, TXT, MD` },
+        { error: `Unsupported file type. Supported: PDF, DOCX, DOC, TXT, MD, RTF` },
         { status: 400 }
       );
     }
@@ -48,7 +49,7 @@ export async function POST(request: Request) {
     text = text.trim();
     if (!text) {
       return NextResponse.json(
-        { error: 'No text could be extracted. Try copy-pasting your resume text instead.' },
+        { error: 'No text could be extracted from this file. Try the Paste text tab instead.' },
         { status: 422 }
       );
     }
@@ -56,9 +57,10 @@ export async function POST(request: Request) {
     return NextResponse.json({ text, chars: text.length });
 
   } catch (err) {
-    console.error('Resume parse error:', err);
+    const message = err instanceof Error ? err.message : String(err);
+    console.error('Resume parse error:', message);
     return NextResponse.json(
-      { error: 'Failed to parse file. Try copy-pasting your resume text instead.' },
+      { error: `Parse failed: ${message}. Try the Paste text tab instead.` },
       { status: 500 }
     );
   }

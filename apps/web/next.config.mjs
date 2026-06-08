@@ -1,5 +1,11 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // Prevent pdf-parse from trying to load canvas (not available serverless)
+  webpack: (config) => {
+    config.resolve.alias.canvas = false;
+    config.resolve.alias.encoding = false;
+    return config;
+  },
   images: {
     remotePatterns: [
       { protocol: 'https', hostname: 'logo.clearbit.com' },
